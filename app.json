@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "잔말말고운동",
+    "slug": "just-one-set",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/logo.png",
+    "scheme": "justoneset",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "com.noah.justoneset",
+      "icon": "./assets/images/logo.png"
+    },
+    "android": {
+      "package": "com.noah.justoneset",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/images/logo.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/logo.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#000000",
+          "image": "./assets/images/logo.png",
+          "imageWidth": 92
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-font",
+        {
+          "fonts": ["./assets/fonts/Pretendard-Regular.otf", "./assets/fonts/Pretendard-Bold.otf"]
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
