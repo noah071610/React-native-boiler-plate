@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Image, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import { Text, View } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -14,7 +15,7 @@ import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { Screen } from '@/components/ui/screen';
 import { useTheme } from '@/hooks/use-theme';
 
-const LOGO = require('../../../assets/images/temp.png');
+const LOGO = require('../../../assets/images/logo.png');
 
 export function FullScreenLoader({ title, subtitle }: { title: string; subtitle?: string }) {
   const { effectiveScheme, scheme } = useTheme();
@@ -90,7 +91,11 @@ export function FullScreenLoader({ title, subtitle }: { title: string; subtitle?
               }}
               className="h-24 w-24 items-center justify-center rounded-3xl border p-3"
             >
-              <Image source={LOGO} style={{ width: 60, height: 60 }} resizeMode="contain" />
+              <Image
+                source={LOGO}
+                style={{ width: 60, height: 60, borderRadius: 14 }}
+                contentFit="contain"
+              />
             </View>
           </Animated.View>
         </View>
@@ -163,4 +168,3 @@ function LoadingDot({ delay, color }: { delay: number; color: string }) {
     />
   );
 }
-

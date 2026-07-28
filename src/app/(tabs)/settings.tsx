@@ -438,7 +438,7 @@ export default function SettingsScreen() {
             <View className="gap-4">
               <LinkRow
                 icon={<MapPin size={18} color={scheme.primary} />}
-                title="목적지 / 통화"
+                title="여행지 / 통화"
                 description="바꿔도 이미 기록한 지출의 환율은 그대로예요"
                 value={trip.destinationCurrency}
                 onPress={() => setSheet('local')}
@@ -473,7 +473,7 @@ export default function SettingsScreen() {
             <LinkRow
               icon={<Moon size={18} color={scheme.primary} />}
               title="화면 테마"
-              description="기기 설정을 따르거나 항상 밝게/어둡게 고정해요"
+              description="화면 밝기 테마 조정"
               value={themeLabel(theme)}
               onPress={() => setSheet('theme')}
             />
@@ -706,7 +706,7 @@ export default function SettingsScreen() {
         onSubmit={(result) => void saveTrip(editing, result)}
       />
 
-      {/* 목적지 / 기준 통화 */}
+      {/* 여행지 / 기준 통화 */}
       <BottomSheet
         visible={sheet === 'local' || sheet === 'base'}
         onClose={close}
@@ -717,7 +717,7 @@ export default function SettingsScreen() {
           className="flex-1 rounded-t-3xl px-5 pt-6"
         >
           <Text className="mb-4 text-xl font-black text-neutral-900 dark:text-neutral-50">
-            {sheet === 'base' ? '기준 통화' : '목적지 / 통화'}
+            {sheet === 'base' ? '기준 통화' : '여행지 / 통화'}
           </Text>
           <CountryList
             selectedCurrency={sheet === 'base' ? baseCurrency : localCurrency}

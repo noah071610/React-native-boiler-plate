@@ -4,10 +4,11 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
 import { useDrizzleStudio } from 'expo-drizzle-studio-plugin';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'nativewind';
 import { useEffect } from 'react';
-import { Text, View } from 'react-native';
+import { Text, TextInput, View, type StyleProp, type TextStyle } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -19,6 +20,31 @@ import { useAppStore } from '@/store/app';
 import { useSettingsStore } from '@/store/settings';
 import { colors } from '@/theme/colors';
 import migrations from '../../drizzle/migrations';
+
+/**
+ * 개발용 — 네이티브 스플래시(app.json의 expo-splash-screen)를 이 밀리초만큼 붙잡는다.
+ * 0이면 평소대로 첫 화면이 그려질 때 바로 사라진다. 눈으로 확인할 때만 3000쯤 준다.
+ * 릴리즈에서는 __DEV__가 false라 이 블록 자체가 돌지 않는다.
+ */
+const HOLD_SPLASH_MS = 0;
+
+if (__DEV__ && HOLD_SPLASH_MS > 0) {
+  void SplashScreen.preventAutoHideAsync();
+  setTimeout(() => void SplashScreen.hideAsync(), HOLD_SPLASH_MS);
+}
+
+const defaultFontStyle = { fontFamily: 'Pretendard' } satisfies TextStyle;
+
+function applyDefaultFont(Component: typeof Text | typeof TextInput) {
+  const target = Component as typeof Component & {
+    defaultProps?: { style?: StyleProp<TextStyle> };
+  };
+  target.defaultProps = target.defaultProps ?? {};
+  target.defaultProps.style = [defaultFontStyle, target.defaultProps.style] as StyleProp<TextStyle>;
+}
+
+applyDefaultFont(Text);
+applyDefaultFont(TextInput);
 
 export default function RootLayout() {
   const { effectiveScheme } = useTheme();

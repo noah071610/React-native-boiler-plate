@@ -98,8 +98,19 @@ export default function MainScreen() {
 
   if (loading) return <FullScreenLoader title="여행을 불러오는 중" />;
 
-  /** 여행 중이 아니면 기록할 곳이 없다 — 계산은 되지만 저장은 막는다 */
-  const canRecord = phase === 'during' && trip != null && myParticipantId != null;
+  /**
+   * 여행 중 + 출발 전까지 기록할 수 있다. 항공권·eSIM·캐리어처럼 떠나기 전에
+   * 그 여행을 위해 쓰는 돈이 있고, 그것도 그 여행의 지출이다.
+   * 지난 여행에는 붙이지 않는다 — 끝난 여행에 새 지출이 생기면 정산이 다시 열린다.
+   */
+  const canRecord =
+    (phase === 'during' || phase === 'before') && trip != null && myParticipantId != null;
+
+  /** 출발 전이면 어느 여행에 붙는지 반드시 말해준다 (화면에는 여행 하나만 떠 있다) */
+  const recordNotice =
+    canRecord && phase === 'before' && trip
+      ? `✈️ 아직 여행 전이에요 · ${countryNameOfCurrency(trip.destinationCurrency)} 여행 지출로 기록돼요`
+      : null;
 
   const openCalc = (side: PairSide, initialMinor = 0) => {
     if (!rate) return;
@@ -412,6 +423,7 @@ export default function MainScreen() {
         tripId={trip?.id ?? ''}
         expenses={tripExpenses}
         canRecord={canRecord}
+        notice={recordNotice}
         onClose={closeCalc}
         onSave={saveExpense}
       />

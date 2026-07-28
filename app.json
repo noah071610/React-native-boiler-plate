@@ -4,38 +4,69 @@
     "slug": "tabica",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo.png",
     "scheme": "tabica",
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.noah.tabica",
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/images/logo.png"
     },
     "android": {
       "package": "com.noah.tabica",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#E0F2FE",
+        "foregroundImage": "./assets/images/logo.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/logo.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#F4F8FA",
+          "image": "./assets/images/splash-logo.png",
+          "imageWidth": 92,
+          "dark": {
+            "backgroundColor": "#0C1726",
+            "image": "./assets/images/splash-logo.png"
+          }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-font",
+        {
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "Pretendard",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/Pretendard-Regular.otf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/Pretendard-Bold.otf",
+                    "weight": 700
+                  },
+                  {
+                    "path": "./assets/fonts/Pretendard-Bold.otf",
+                    "weight": 900
+                  }
+                ]
+              }
+            ]
+          },
+          "ios": {
+            "fonts": ["./assets/fonts/Pretendard-Regular.otf", "./assets/fonts/Pretendard-Bold.otf"]
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

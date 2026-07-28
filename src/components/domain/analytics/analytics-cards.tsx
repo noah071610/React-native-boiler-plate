@@ -23,6 +23,7 @@ export function SummaryCard({
     dualCurrency,
     totalMinor,
     totalBaseMinor,
+    preTrip,
     budgetPercent,
     overBaseMinor,
     dailyAvgBaseMinor,
@@ -71,8 +72,30 @@ export function SummaryCard({
         ) : null}
         <Text className="text-xs font-bold" style={{ color: scheme.mutedForeground }}>
           하루 평균 {formatMoney(dailyAvgBaseMinor, baseCurrency)}
+          {preTrip ? ' (여행 기간만)' : ''}
         </Text>
       </View>
+
+      {/* 출발 전 지출 — 총 지출에는 들어 있지만 하루 평균·일별 추이에는 없다.
+          그 사실을 말해주지 않으면 "막대를 다 더해도 총액이 안 맞는다"가 된다. */}
+      {preTrip ? (
+        <View
+          className="mt-4 flex-row items-center justify-between rounded-2xl px-3.5 py-3"
+          style={{ backgroundColor: scheme.muted }}
+        >
+          <View className="gap-0.5">
+            <Text className="text-xs font-bold" style={{ color: scheme.mutedForeground }}>
+              ✈️ 출발 전 지출 · {preTrip.count}건
+            </Text>
+            <Text className="text-[11px] font-semibold" style={{ color: scheme.mutedForeground }}>
+              총 지출에 포함 · 하루 평균에서는 제외
+            </Text>
+          </View>
+          <Text className="text-base font-black text-neutral-900 dark:text-neutral-50">
+            {formatMoney(preTrip.minor, currency)}
+          </Text>
+        </View>
+      ) : null}
     </Section>
   );
 }

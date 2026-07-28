@@ -85,6 +85,11 @@ export type Analytics = {
   dualCurrency: boolean;
   totalMinor: number;
   totalBaseMinor: number;
+  /**
+   * 출발 전 지출 (여행 시작일 이전 기록 — 항공권·eSIM·캐리어).
+   * 총액에는 포함돼 있고 일별 추이·하루 평균에서만 빠진다. 없으면 null.
+   */
+  preTrip: { minor: number; baseMinor: number; count: number } | null;
   budgetPercent: number | null;
   /** 예산을 넘었으면 초과분(기준 통화). 넘지 않았으면 null */
   overBaseMinor: number | null;
@@ -151,6 +156,15 @@ export function useAnalytics({
     const currency = uniform ? trip.destinationCurrency : trip.baseCurrency;
     const valueOf = (e: Expense) => (uniform ? e.amount : e.baseAmount);
 
+    /**
+     * 출발 전 지출 — 여행 시작일보다 앞선 기록(항공권·eSIM·캐리어)이다.
+     * 총액과 카테고리에는 그대로 들어가지만 일별 추이와 하루 평균에서는 뺀다.
+     * 집에 있던 날까지 분모에 들어가면 "현지에서 하루 얼마 썼나"가 흐려진다.
+     */
+    const startDate = trip.startDate;
+    const isPreTrip = (e: Expense) =>
+      startDate != null && localDateKey(e.occurredAt) < startDate;
+
     const dayKeys = expenses.map((e) => localDateKey(e.occurredAt)).sort();
     const todayKey = localDateKey(Date.now());
     const firstKey = trip.startDate ?? dayKeys[0];
@@ -171,10 +185,19 @@ export function useAnalytics({
     /* ① 기간 요약 */
     let totalMinor = 0;
     let totalBaseMinor = 0;
+    let preTripMinor = 0;
+    let preTripBaseMinor = 0;
+    let preTripCount = 0;
     const perDay = new Map<string, number>();
     for (const e of expenses) {
       totalMinor += valueOf(e);
       totalBaseMinor += e.baseAmount;
+      if (isPreTrip(e)) {
+        preTripMinor += valueOf(e);
+        preTripBaseMinor += e.baseAmount;
+        preTripCount += 1;
+        continue;
+      }
       const key = localDateKey(e.occurredAt);
       perDay.set(key, (perDay.get(key) ?? 0) + valueOf(e));
     }
@@ -339,9 +362,14 @@ export function useAnalytics({
       dualCurrency: currency !== trip.baseCurrency,
       totalMinor,
       totalBaseMinor,
+      preTrip:
+        preTripCount > 0
+          ? { minor: preTripMinor, baseMinor: preTripBaseMinor, count: preTripCount }
+          : null,
       budgetPercent,
       overBaseMinor,
-      dailyAvgBaseMinor: Math.round(totalBaseMinor / days),
+      // 분자에서도 출발 전 지출을 뺀다 — 여행 기간 지출을 여행 일수로 나눠야 평균이 성립한다
+      dailyAvgBaseMinor: Math.round((totalBaseMinor - preTripBaseMinor) / days),
       categories: categorySlices,
       daily,
       baseline,

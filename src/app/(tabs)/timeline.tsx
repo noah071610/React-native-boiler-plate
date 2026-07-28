@@ -21,6 +21,7 @@ import { TimelineHeader } from '@/components/domain/timeline/timeline-header';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { FullScreenLoader } from '@/components/ui/full-screen-loader';
 import { categoryLabel } from '@/constants/categories';
+import { countryNameOfCurrency } from '@/constants/currencies';
 import { db } from '@/db';
 import { categories, expenses, participants, type Expense } from '@/db/schema';
 import { useActiveTrip } from '@/hooks/use-active-trip';
@@ -43,7 +44,7 @@ export default function TimelineScreen() {
   const addRecentCalc = useAppStore((s) => s.addRecentCalc);
 
   // 내 참가자 id는 여행에 딸린 값이다 — 스토어에는 없다 (v1에서 뺐다)
-  const { trip, expenses: rows, myParticipantId, loading } = useActiveTrip();
+  const { trip, phase, expenses: rows, myParticipantId, loading } = useActiveTrip();
   const tripId = trip?.id ?? '';
 
   const categoryQuery = useLiveQuery(
@@ -356,6 +357,13 @@ export default function TimelineScreen() {
         rate={quote?.rate ?? 0}
         tripId={trip.id}
         expenses={rows}
+        // 메인과 같은 규칙 — 지난 여행에는 새 지출을 붙이지 않는다
+        canRecord={phase !== 'after' && myParticipantId != null}
+        notice={
+          phase === 'before'
+            ? `✈️ 아직 여행 전이에요 · ${countryNameOfCurrency(trip.destinationCurrency)} 여행 지출로 기록돼요`
+            : null
+        }
         onClose={() => setCalcOpen(false)}
         onSave={saveExpense}
       />

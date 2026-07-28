@@ -33,6 +33,8 @@ export type QuickRecordInput = {
 type Props = {
   tripId: string;
   expenses: Expense[];
+  /** 맨 위 안내 한 줄. 어느 여행에 붙는지가 화면만 봐서는 애매할 때만 준다 */
+  notice?: string | null;
   /** 수정 모드에서 기존 값을 채워둔다. occurredAt이 있으면 "지금" 토글은 꺼진 채로 연다. */
   initial?: Partial<QuickRecordInput>;
   saveLabel?: string;
@@ -80,7 +82,15 @@ const merge = (a: Date, b: Date) =>
  * 카테고리 탭은 선택이고, 저장은 맨 아래 저장 버튼이 한다.
  * 잘못 누른 것은 저장 뒤의 되돌리기 토스트가 받는다.
  */
-export function QuickRecord({ tripId, expenses, initial, saveLabel, onBack, onSave }: Props) {
+export function QuickRecord({
+  tripId,
+  expenses,
+  notice,
+  initial,
+  saveLabel,
+  onBack,
+  onSave,
+}: Props) {
   const { scheme } = useTheme();
   const insets = useSafeAreaInsets();
   const grid = useCategoryGrid(expenses);
@@ -160,6 +170,18 @@ export function QuickRecord({ tripId, expenses, initial, saveLabel, onBack, onSa
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ gap: 16, paddingBottom: 16 }}
       >
+        {/* 어느 여행에 붙는지 — 출발 전 기록이면 화면에 그 여행이 떠 있어도 한 번 더 말해준다 */}
+        {notice ? (
+          <View
+            style={{ backgroundColor: scheme.primarySoft }}
+            className="rounded-2xl px-3.5 py-3"
+          >
+            <Text style={{ color: scheme.primary }} className="text-xs font-bold leading-relaxed">
+              {notice}
+            </Text>
+          </View>
+        ) : null}
+
         <Section title="어디에 썼나요">
         <View onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}>
           {gridWidth > 0 ? (

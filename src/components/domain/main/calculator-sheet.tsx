@@ -38,8 +38,10 @@ type Props = {
   /** 빠른 기록 패널이 쓰는 값 */
   tripId: string;
   expenses: Expense[];
-  /** 지금 기록할 여행이 있는가 (여행 기간이 아니면 계산만 된다). 기본값 true */
+  /** 지금 기록할 여행이 있는가 (지난 여행뿐이면 계산만 된다). 기본값 true */
   canRecord?: boolean;
+  /** 빠른 기록 패널 맨 위에 띄울 안내 (출발 전 기록처럼 대상이 헷갈릴 때) */
+  notice?: string | null;
   /** 수정 모드 — 빠른 기록 패널을 기존 지출 값으로 채워 연다 */
   initialInput?: Partial<QuickRecordInput>;
   saveLabel?: string;
@@ -114,6 +116,7 @@ export function CalculatorSheet({
   tripId,
   expenses,
   canRecord = true,
+  notice,
   initialInput,
   saveLabel,
   onClose,
@@ -319,6 +322,7 @@ export function CalculatorSheet({
           <QuickRecord
             tripId={tripId}
             expenses={expenses}
+            notice={notice}
             initial={initialInput}
             saveLabel={saveLabel}
             onBack={() => setPicking(false)}

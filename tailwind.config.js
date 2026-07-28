@@ -15,11 +15,9 @@ module.exports = {
   theme: {
     extend: {
       colors,
-      // Android ignores fontWeight on custom fonts — pick the family, not the weight.
-      // Use `font-sans` / `font-heavy`, never `font-bold`.
       fontFamily: {
-        sans: ['Pretendard-Regular'],
-        heavy: ['Pretendard-Bold'],
+        sans: ['Pretendard'],
+        heavy: ['Pretendard'],
       },
       // Semantic sizes — keep in sync with src/lib/typography.ts (FONT_SIZES).
       // <AppText> applies fontScale on top of these; use tokens directly for static text.

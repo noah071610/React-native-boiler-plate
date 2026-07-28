@@ -73,10 +73,11 @@ export function TripHero({
   expenseCount,
   onAddTrip,
 }: Props) {
-  const { scheme } = useTheme();
+  const { effectiveScheme, scheme } = useTheme();
   const image = HERO_IMAGES[localCurrency];
   const remaining = budgetAmount != null ? budgetAmount - spentBase : null;
   const countryName = countryNameOfCurrency(localCurrency);
+  const ctaForeground = effectiveScheme === 'dark' ? scheme.primaryForeground : scheme.primary;
 
   const content = (
     <View className="gap-4 p-5">
@@ -90,15 +91,18 @@ export function TripHero({
       </View>
 
       {phase === 'none' ? (
-        // 히어로 배경 위라 흰 반투명 알약. 배경색과 상관없이 어디서나 읽힌다.
+        // 히어로 배경 위라 테마 대비색만 직접 고정한다.
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="여행 만들기"
           onPress={onAddTrip}
-          className="flex-row items-center gap-1.5 self-start rounded-full bg-white/90 px-4 py-2 active:scale-95 active:opacity-80"
+          style={{
+            backgroundColor: effectiveScheme === 'dark' ? scheme.primary : 'rgba(255,255,255,0.9)',
+          }}
+          className="flex-row items-center gap-1.5 self-start rounded-full px-4 py-2 active:scale-95 active:opacity-80"
         >
-          <Plus size={16} color={scheme.primary} strokeWidth={3} />
-          <Text style={{ color: scheme.primary }} className="text-sm font-black">
+          <Plus size={16} color={ctaForeground} strokeWidth={3} />
+          <Text style={{ color: ctaForeground }} className="text-sm font-black">
             여행지 추가
           </Text>
         </Pressable>

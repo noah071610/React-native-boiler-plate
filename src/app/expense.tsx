@@ -1,9 +1,9 @@
-import { eq } from 'drizzle-orm';
+import { eq, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Pencil, Trash2 } from 'lucide-react-native';
-import { useState, type ReactNode } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Check, ChevronRight, Pencil, Trash2 } from 'lucide-react-native';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CalculatorSheet, type CalcResult } from '@/components/domain/main/calculator-sheet';
@@ -12,16 +12,20 @@ import {
   formatDateTime,
   type QuickRecordInput,
 } from '@/components/domain/main/quick-record';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { SectionHeader } from '@/components/ui/section-header';
 import { categoryLabel } from '@/constants/categories';
+import { countryNameOfCurrency, flagOfCurrency } from '@/constants/currencies';
 import { db } from '@/db';
-import { categories, expenses, participants } from '@/db/schema';
+import { categories, expenses, participants, trips } from '@/db/schema';
 import { useActiveTrip } from '@/hooks/use-active-trip';
 import { useTheme } from '@/hooks/use-theme';
+import { haptics } from '@/lib/haptics';
 import { formatMoney } from '@/lib/money';
 import { formatRateDate } from '@/lib/rates';
+import { sortTripsByRecent } from '@/lib/trip-dates';
 import { useSettingsStore } from '@/store/settings';
 
 /**
@@ -59,9 +63,12 @@ export default function ExpenseScreen() {
   );
   const categoryQuery = useLiveQuery(db.select().from(categories));
   const participantQuery = useLiveQuery(db.select().from(participants));
+  const tripQuery = useLiveQuery(db.select().from(trips).where(isNull(trips.deletedAt)));
 
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  /** 여행 옮기기 시트 */
+  const [moving, setMoving] = useState(false);
 
   const expense = params.id ? (detailQuery.data?.[0] ?? null) : null;
   const category = categoryQuery.data?.find((c) => c.id === expense?.categoryId) ?? null;
@@ -76,6 +83,49 @@ export default function ExpenseScreen() {
     : '공용';
   /** 자기가 기록한 것만 고치고 지울 수 있다 (Master §11 소유권 규칙) */
   const mine = expense != null && expense.authorId === myParticipantId;
+
+  const tripOf = expense ? (tripQuery.data?.find((t) => t.id === expense.tripId) ?? null) : null;
+
+  /**
+   * 옮길 수 있는 여행 — 기준 통화가 같은 것만.
+   * 기준 통화가 다르면 baseAmount(환산 금액)를 다시 계산해야 하는데, 그러려면
+   * 기록 시점의 다른 통화쌍 환율이 필요하다. 그 값이 없으므로 아예 후보에서 뺀다.
+   * ponytail: rate_history가 붙으면 재환산해서 이 필터를 없앤다.
+   */
+  const moveTargets = useMemo(
+    () =>
+      sortTripsByRecent(
+        (tripQuery.data ?? []).filter(
+          (t) => t.deletedAt == null && t.baseCurrency === expense?.baseCurrency,
+        ),
+      ),
+    [tripQuery.data, expense?.baseCurrency],
+  );
+
+  /**
+   * 여행 옮기기 — 여행 중에 산 다음 여행 항공권처럼 붙는 곳이 틀린 기록을 고친다.
+   * 참가자·정산 정보는 여행에 딸린 값이라 같이 옮길 수 없다. 새 여행의 "나"로 다시 붙이고
+   * "누가 썼는가"는 비운다 (옮긴 뒤 그 여행 기준으로 다시 고르면 된다).
+   */
+  const moveToTrip = async (targetId: string) => {
+    setMoving(false);
+    if (!expense || targetId === expense.tripId) return;
+    const me = (participantQuery.data ?? []).find(
+      (p) => p.tripId === targetId && p.isMe && p.deletedAt == null,
+    );
+    if (!me) return;
+    await db
+      .update(expenses)
+      .set({
+        tripId: targetId,
+        authorId: me.id,
+        usedBy: null,
+        isPersonal: false,
+        updatedAt: Date.now(),
+      })
+      .where(eq(expenses.id, expense.id));
+    haptics.notification();
+  };
 
   const saveEdit = async (result: CalcResult, input: QuickRecordInput) => {
     if (!expense) return;
@@ -170,6 +220,38 @@ export default function ExpenseScreen() {
         </View>
 
         <View className="gap-px overflow-hidden rounded-2xl" style={{ backgroundColor: scheme.muted }}>
+          {/* 여행 — 여행 중에 산 다음 여행 항공권처럼 붙는 곳이 틀린 기록을 여기서 옮긴다.
+              옮길 후보가 자기 자신뿐이면 누를 이유가 없어 그냥 값으로 보여준다. */}
+          {tripOf ? (
+            mine && moveTargets.length > 1 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="이 지출의 여행 바꾸기"
+                onPress={() => {
+                  haptics.selection();
+                  setMoving(true);
+                }}
+                className="flex-row items-center justify-between px-4 py-3.5 active:opacity-70"
+                style={{ backgroundColor: scheme.card }}
+              >
+                <Text className="text-sm font-bold" style={{ color: scheme.mutedForeground }}>
+                  여행
+                </Text>
+                <View className="flex-row items-center gap-1">
+                  <Text className="text-sm font-bold text-neutral-900 dark:text-neutral-50">
+                    {flagOfCurrency(tripOf.destinationCurrency)}{' '}
+                    {countryNameOfCurrency(tripOf.destinationCurrency)}
+                  </Text>
+                  <ChevronRight size={16} color={scheme.mutedForeground} />
+                </View>
+              </Pressable>
+            ) : (
+              <Row
+                label="여행"
+                value={`${flagOfCurrency(tripOf.destinationCurrency)} ${countryNameOfCurrency(tripOf.destinationCurrency)}`}
+              />
+            )
+          ) : null}
           <Row label="언제" value={formatDateTime(new Date(expense.occurredAt), language)} />
           {payment ? <Row label="결제수단" value={`${payment.icon} ${payment.label}`} /> : null}
           <Row label="기록한 사람" value={mine ? '나' : (author?.name ?? '동행자')} />
@@ -232,6 +314,55 @@ export default function ExpenseScreen() {
         onClose={() => setEditing(false)}
         onSave={saveEdit}
       />
+
+      <BottomSheet visible={moving} onClose={() => setMoving(false)} avoidKeyboard={false}>
+        <View
+          style={{ backgroundColor: scheme.card, paddingBottom: insets.bottom + 16 }}
+          className="gap-3 rounded-t-3xl px-5 pt-6"
+        >
+          <Text className="text-xl font-black text-neutral-900 dark:text-neutral-50">
+            어느 여행의 지출인가요
+          </Text>
+          <Text className="text-xs font-semibold" style={{ color: scheme.mutedForeground }}>
+            옮기면 "누가 사용했나요"는 새 여행 기준으로 다시 골라야 해요
+          </Text>
+
+          <ScrollView className="max-h-96" showsVerticalScrollIndicator={false}>
+            <View className="gap-2 pb-2">
+              {moveTargets.map((t) => {
+                const current = t.id === expense.tripId;
+                return (
+                  <Pressable
+                    key={t.id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: current }}
+                    onPress={() => void moveToTrip(t.id)}
+                    style={{
+                      backgroundColor: current ? scheme.primarySoft : scheme.muted,
+                      borderColor: current ? scheme.primary : 'transparent',
+                    }}
+                    className="flex-row items-center justify-between rounded-2xl border-2 px-4 py-3 active:opacity-70"
+                  >
+                    <View className="gap-0.5">
+                      <Text className="text-sm font-black text-neutral-900 dark:text-neutral-50">
+                        {flagOfCurrency(t.destinationCurrency)}{' '}
+                        {countryNameOfCurrency(t.destinationCurrency)}
+                      </Text>
+                      <Text
+                        className="text-[11px] font-semibold"
+                        style={{ color: scheme.mutedForeground }}
+                      >
+                        {t.startDate && t.endDate ? `${t.startDate} – ${t.endDate}` : '기간 미설정'}
+                      </Text>
+                    </View>
+                    {current ? <Check size={18} color={scheme.primary} /> : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+      </BottomSheet>
 
       <ConfirmDialog
         visible={confirming}
