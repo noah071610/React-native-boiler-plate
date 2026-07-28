@@ -5,8 +5,8 @@ import { Pie, PolarChart } from 'victory-native';
 import { Section } from '@/components/domain/analytics/section';
 import { useTheme } from '@/hooks/use-theme';
 import type { CategorySlice } from '@/hooks/use-analytics';
+import { formatMoneyI18n, useI18n } from '@/i18n';
 import { haptics } from '@/lib/haptics';
-import { formatMoney } from '@/lib/money';
 
 const TOP = 5;
 const DONUT = 168;
@@ -26,13 +26,15 @@ type Props = {
  */
 export function CategoryBreakdown({ slices, currency, totalMinor, onSelect }: Props) {
   const { scheme } = useTheme();
+  const { resolvedLanguage, t } = useI18n();
   const [expanded, setExpanded] = useState(false);
+  const money = (minor: number) => formatMoneyI18n(minor, currency, t, resolvedLanguage);
 
   const visible = expanded ? slices : slices.slice(0, TOP);
   const pieData = slices.map((s) => ({ label: s.label, value: s.baseMinor, color: s.color }));
 
   return (
-    <Section title="카테고리">
+    <Section title={t('analytics.categoriesTitle', '카테고리')}>
       {pieData.length > 1 ? (
         <View className="mb-4 items-center">
           <View style={{ width: DONUT, height: DONUT }}>
@@ -41,10 +43,10 @@ export function CategoryBreakdown({ slices, currency, totalMinor, onSelect }: Pr
             </PolarChart>
             <View pointerEvents="none" className="absolute inset-0 items-center justify-center">
               <Text className="text-[11px] font-bold" style={{ color: scheme.mutedForeground }}>
-                총 지출
+                {t('analytics.totalSpent', '총 지출')}
               </Text>
               <Text className="text-base font-black text-neutral-900 dark:text-neutral-50">
-                {formatMoney(totalMinor, currency)}
+                {money(totalMinor)}
               </Text>
             </View>
           </View>
@@ -56,7 +58,9 @@ export function CategoryBreakdown({ slices, currency, totalMinor, onSelect }: Pr
           <Pressable
             key={slice.id}
             accessibilityRole="button"
-            accessibilityLabel={`${slice.label} 지출 보기`}
+            accessibilityLabel={t('analytics.viewCategoryExpensesA11y', '{{category}} 지출 보기', {
+              category: slice.label,
+            })}
             onPress={() => {
               haptics.selection();
               onSelect(slice.id);
@@ -69,7 +73,7 @@ export function CategoryBreakdown({ slices, currency, totalMinor, onSelect }: Pr
                 {slice.label}
               </Text>
               <Text className="text-sm font-black text-neutral-900 dark:text-neutral-50">
-                {formatMoney(slice.minor, currency)}
+                {money(slice.minor)}
               </Text>
               <Text
                 className="w-10 text-right text-xs font-bold"
@@ -98,7 +102,9 @@ export function CategoryBreakdown({ slices, currency, totalMinor, onSelect }: Pr
           className="mt-3 items-center active:opacity-60"
         >
           <Text className="text-xs font-bold" style={{ color: scheme.primary }}>
-            {expanded ? '접기' : `더 보기 (${slices.length - TOP})`}
+            {expanded
+              ? t('analytics.collapse', '접기')
+              : t('analytics.showMoreCount', '더 보기 ({{count}})', { count: slices.length - TOP })}
           </Text>
         </Pressable>
       ) : null}

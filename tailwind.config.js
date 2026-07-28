@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 const { appColors } = require('./src/constants/theme-color.ts');
+const plugin = require('tailwindcss/plugin');
 
 const colors = Object.fromEntries(
   Object.entries(appColors.light).map(([name, light]) => [
@@ -29,5 +30,16 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    plugin(({ addUtilities, theme }) => {
+      addUtilities(
+        Object.fromEntries(
+          Object.entries(theme('fontWeight')).map(([name, weight]) => [
+            `.font-${name}`,
+            { fontFamily: 'var(--app-font)', fontWeight: weight },
+          ]),
+        ),
+      );
+    }),
+  ],
 };

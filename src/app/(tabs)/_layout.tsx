@@ -2,6 +2,7 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
 import { useBundleAutoUpload } from '@/hooks/use-bundle-upload';
 import { useTheme } from '@/hooks/use-theme';
+import { useI18n } from '@/i18n';
 import { colors } from '@/theme/colors';
 
 /**
@@ -12,6 +13,7 @@ import { colors } from '@/theme/colors';
  */
 export default function TabsLayout() {
   const { effectiveScheme } = useTheme();
+  const { t } = useI18n();
   const scheme = colors[effectiveScheme];
 
   // 초대 코드가 살아 있을 때만 도는 우편함 최신화. 여기(탭 루트)에 두면 앱이 떠 있는
@@ -25,22 +27,22 @@ export default function TabsLayout() {
       indicatorColor={scheme.primarySoft}
     >
       <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>메인</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>{t('tabs.main', '메인')}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="house" md="home" />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="timeline">
-        <NativeTabs.Trigger.Label>타임라인</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>{t('tabs.timeline', '타임라인')}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="list.bullet" md="receipt_long" />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="analytics">
-        <NativeTabs.Trigger.Label>애널리틱스</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>{t('tabs.analytics', '애널리틱스')}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="chart.pie" md="pie_chart" />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="settings">
-        <NativeTabs.Trigger.Label>설정</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>{t('tabs.settings', '설정')}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="gearshape" md="settings" />
       </NativeTabs.Trigger>
     </NativeTabs>

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { localDateKey } from '@/hooks/use-active-trip';
 import { useTheme } from '@/hooks/use-theme';
+import { useI18n } from '@/i18n';
 import { haptics } from '@/lib/haptics';
 import { digitsOf, groupDigits } from '@/lib/money';
 
@@ -57,6 +58,7 @@ export function AmountField({
   disabled?: boolean;
 }) {
   const { scheme } = useTheme();
+  const { t } = useI18n();
   return (
     <View
       style={{ backgroundColor: scheme.muted, height: 56, opacity: disabled ? 0.5 : 1 }}
@@ -71,7 +73,7 @@ export function AmountField({
         keyboardType={digitsOf(currency) === 0 ? 'number-pad' : 'decimal-pad'}
         placeholder="0"
         placeholderTextColor={scheme.mutedForeground}
-        accessibilityLabel={`${currency} 금액`}
+        accessibilityLabel={t('main.amountA11y', '{{currency}} 금액', { currency })}
         // text-lg 같은 tailwind 크기는 lineHeight까지 같이 붙는데, 한 줄짜리 TextInput은
         // lineHeight가 폰트보다 크면 글자를 줄 상자 아래로 밀어낸다. fontSize만 직접 준다.
         style={{
@@ -107,6 +109,7 @@ export function DateField({
   onChange: (date: Date) => void;
 }) {
   const { scheme } = useTheme();
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(() => localDateKey((value ?? new Date()).getTime()));
@@ -124,14 +127,14 @@ export function DateField({
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${label} 선택`}
+        accessibilityLabel={t('main.selectFieldA11y', '{{label}} 선택', { label })}
         onPress={openPicker}
         style={{ backgroundColor: scheme.muted }}
         className="h-14 flex-row items-center justify-between rounded-2xl px-4 active:opacity-70"
       >
         <Text className="text-base font-bold text-neutral-500 dark:text-neutral-400">{label}</Text>
         <Text className="text-base font-bold text-neutral-900 dark:text-neutral-50">
-          {value ? `🗓 ${localDateKey(value.getTime())}` : '선택'}
+          {value ? `🗓 ${localDateKey(value.getTime())}` : t('main.select', '선택')}
         </Text>
       </Pressable>
 
@@ -148,7 +151,7 @@ export function DateField({
             showModeToggle={false}
           />
           <Button
-            label="완료"
+            label={t('common.done', '완료')}
             onPress={() => {
               onChange(parseKey(draft));
               setOpen(false);
@@ -202,10 +205,11 @@ export function DisplayCurrencyRow({
   onChange: (value: boolean) => void;
 }) {
   const { scheme } = useTheme();
+  const { t } = useI18n();
   return (
     <View className="gap-2">
       <Text className="pl-1 text-sm font-bold text-neutral-500 dark:text-neutral-400">
-        예산 표시 통화
+        {t('main.budgetDisplayCurrency', '예산 표시 통화')}
       </Text>
       {/* 네이티브 Switch 높이가 플랫폼마다 달라 높이를 고정하지 않는다 */}
       <View
@@ -213,7 +217,13 @@ export function DisplayCurrencyRow({
         className="flex-row items-center justify-between rounded-2xl px-4 py-2"
       >
         <Text className="text-sm font-bold text-neutral-700 dark:text-neutral-200">
-          {showInLocal ? `현지 통화 (${localCurrency})` : `기준 통화 (${baseCurrency})`}
+          {showInLocal
+            ? t('main.localCurrencyWithCode', '현지 통화 ({{currency}})', {
+                currency: localCurrency,
+              })
+            : t('main.baseCurrencyWithCode', '기준 통화 ({{currency}})', {
+                currency: baseCurrency,
+              })}
         </Text>
         <Switch
           value={showInLocal}

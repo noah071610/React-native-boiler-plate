@@ -69,6 +69,7 @@ export async function createTrip({
   await db.insert(trips).values({
     id: tripId,
     destinationCurrency: country.currency,
+    destinationCountryCode: country.code,
     baseCurrency,
     startDate,
     endDate,

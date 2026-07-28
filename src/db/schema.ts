@@ -9,8 +9,6 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
-
-
 const timestamps = {
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
@@ -26,7 +24,6 @@ const randomId = () =>
     : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 const uuid = () => text('id').primaryKey().$defaultFn(randomId);
-
 
 /* ============================================================
  * Tabica — 앱 로컬 스키마 (expo-sqlite)
@@ -69,6 +66,9 @@ export const trips = sqliteTable(
 
     /** 현지 통화 ISO 4217. 여행 중 변경 가능 (여러 나라를 연달아 다니는 경우). */
     destinationCurrency: text('destination_currency').notNull(),
+
+    /** 여행지 ISO 3166-1 alpha-2. EUR처럼 통화가 겹치는 나라의 표시/히어로용. */
+    destinationCountryCode: text('destination_country_code'),
 
     /** 기준 통화 ISO 4217. 온보딩에서 기기 지역으로 추론. */
     baseCurrency: text('base_currency').notNull(),
@@ -221,9 +221,7 @@ export const expenses = sqliteTable(
     }),
 
     /** 정산에서 제외. 참가자 2명일 때만 UI에 노출된다. */
-    isPersonal: integer('is_personal', { mode: 'boolean' })
-      .notNull()
-      .default(false),
+    isPersonal: integer('is_personal', { mode: 'boolean' }).notNull().default(false),
 
     /**
      * 누가 썼는가 (결제자 authorId와 별개다 — 내가 냈지만 상대가 쓴 경우가 있다).

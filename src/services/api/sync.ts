@@ -44,6 +44,7 @@ export type SyncRoom = {
   code: string;
   tripId: string;
   destinationCurrency: string;
+  destinationCountryCode?: string | null;
   baseCurrency: string;
   startDate: string | null;
   endDate: string | null;
@@ -79,6 +80,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export function createRoom(input: {
   tripId: string;
   destinationCurrency: string;
+  destinationCountryCode: string | null;
   baseCurrency: string;
   startDate: string | null;
   endDate: string | null;

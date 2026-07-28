@@ -4,7 +4,7 @@ import { Bar, CartesianChart, Line } from 'victory-native';
 import { Section } from '@/components/domain/analytics/section';
 import type { DailyPoint } from '@/hooks/use-analytics';
 import { useTheme } from '@/hooks/use-theme';
-import { CURRENCIES } from '@/constants/currencies';
+import { currencyUnit, useI18n } from '@/i18n';
 
 const CHART_HEIGHT = 180;
 const INSET = 16;
@@ -21,17 +21,18 @@ type Props = {
  */
 export function DailyTrend({ daily, currency }: Props) {
   const { scheme } = useTheme();
+  const { t } = useI18n();
 
   const data = daily.map((d, i) => ({ x: i, value: d.value, avg: d.avg }));
   const todayIndex = daily.findIndex((d) => d.isToday);
-  const unit = CURRENCIES[currency]?.unitKo ?? currency;
+  const unit = currencyUnit(currency, t);
   // 라벨이 촘촘해지면 건너뛴다 (막대는 그대로 다 그린다)
   const labelStep = Math.ceil(daily.length / 10);
 
   return (
-    <Section title="일별 지출">
+    <Section title={t('analytics.dailySpendingTitle', '일별 지출')}>
       <Text className="mb-1 text-[11px] font-bold" style={{ color: scheme.mutedForeground }}>
-        {unit} · 점선 없는 가로선이 평균
+        {t('analytics.dailyTrendCaption', '{{unit}} · 점선 없는 가로선이 평균', { unit })}
       </Text>
 
       <View style={{ height: CHART_HEIGHT }}>

@@ -4,10 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
-import { CURRENCIES } from '@/constants/currencies';
 import { useTheme } from '@/hooks/use-theme';
+import { currencyUnit, formatMoneyI18n, useI18n } from '@/i18n';
 import { haptics } from '@/lib/haptics';
-import { formatMoney, toMinor } from '@/lib/money';
+import { toMinor } from '@/lib/money';
 import {
   AmountField,
   DisplayCurrencyRow,
@@ -58,6 +58,7 @@ export function BudgetSheet({
   onSubmit,
 }: Props) {
   const { scheme } = useTheme();
+  const { resolvedLanguage, t } = useI18n();
   const insets = useSafeAreaInsets();
 
   const hasBudget = budgetAmount != null && budgetAmount > 0;
@@ -77,8 +78,9 @@ export function BudgetSheet({
     setShowInLocal((budgetCurrency ?? localCurrency) !== baseCurrency);
   }, [visible, budgetCurrency, localCurrency, baseCurrency]);
 
-  const baseUnit = CURRENCIES[baseCurrency]?.unitKo ?? baseCurrency;
-  const localUnit = CURRENCIES[localCurrency]?.unitKo ?? localCurrency;
+  const baseUnit = currencyUnit(baseCurrency, t);
+  const localUnit = currencyUnit(localCurrency, t);
+  const baseMoney = (minor: number) => formatMoneyI18n(minor, baseCurrency, t, resolvedLanguage);
 
   /** 기준 통화를 먼저 받는다. 현지 통화는 따라 계산되고, 그 뒤에 직접 고칠 수 있다. */
   const changeBase = (text: string) => {
@@ -113,19 +115,26 @@ export function BudgetSheet({
         >
           <View>
             <Text className="text-xl font-black text-neutral-900 dark:text-neutral-50">
-              {hasBudget ? '예산 조정' : '이번 여행 예산'}
+              {hasBudget
+                ? t('main.adjustBudget', '예산 조정')
+                : t('main.tripBudget', '이번 여행 예산')}
             </Text>
             <Text className="mt-1 text-sm font-semibold text-neutral-400">
               {hasBudget
-                ? `지금 예산 ${formatMoney(budgetAmount ?? 0, baseCurrency)}`
-                : '정확하지 않아도 괜찮아요. 나중에 바꿀 수 있어요.'}
+                ? t('main.currentBudget', '지금 예산 {{amount}}', {
+                    amount: baseMoney(budgetAmount ?? 0),
+                  })
+                : t(
+                    'main.budgetSheetDescription',
+                    '정확하지 않아도 괜찮아요. 나중에 바꿀 수 있어요.',
+                  )}
             </Text>
           </View>
 
           {hasBudget ? (
             <View className="flex-row gap-2">
               <ModeChip
-                label="➕ 추가"
+                label={t('main.addAmount', '➕ 추가')}
                 selected={mode === 'add'}
                 onPress={() => {
                   haptics.selection();
@@ -133,7 +142,7 @@ export function BudgetSheet({
                 }}
               />
               <ModeChip
-                label="➖ 삭감"
+                label={t('main.cutAmount', '➖ 삭감')}
                 selected={mode === 'cut'}
                 onPress={() => {
                   haptics.selection();
@@ -145,7 +154,11 @@ export function BudgetSheet({
 
           <View className="gap-2">
             <Text className="pl-1 text-sm font-bold text-neutral-500 dark:text-neutral-400">
-              {hasBudget ? (mode === 'add' ? '얼마나 더 쓸까요' : '얼마나 줄일까요') : '예산'}
+              {hasBudget
+                ? mode === 'add'
+                  ? t('main.howMuchMore', '얼마나 더 쓸까요')
+                  : t('main.howMuchLess', '얼마나 줄일까요')
+                : t('settings.budget', '예산')}
             </Text>
             <AmountField
               unit={baseUnit}
@@ -162,8 +175,7 @@ export function BudgetSheet({
             />
             {hasBudget && enteredMinor > 0 ? (
               <Text className="pl-1 text-xs font-bold" style={{ color: scheme.primary }}>
-                {formatMoney(budgetAmount ?? 0, baseCurrency)} →{' '}
-                {formatMoney(nextMinor, baseCurrency)}
+                {baseMoney(budgetAmount ?? 0)} → {baseMoney(nextMinor)}
               </Text>
             ) : null}
           </View>
@@ -178,7 +190,13 @@ export function BudgetSheet({
         </ScrollView>
 
         <Button
-          label={hasBudget ? (mode === 'add' ? '예산 추가' : '예산 삭감') : '저장'}
+          label={
+            hasBudget
+              ? mode === 'add'
+                ? t('main.addBudget', '예산 추가')
+                : t('main.cutBudget', '예산 삭감')
+              : t('common.save', '저장')
+          }
           disabled={enteredMinor <= 0}
           onPress={() =>
             onSubmit({

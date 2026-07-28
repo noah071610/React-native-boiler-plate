@@ -2,9 +2,14 @@ import { MessagesSquare } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
+import { useI18n } from '@/i18n';
 
 /** 여행 중 가장 자주 쓰는 세 마디. 번역은 아직 비어 있다. */
-const PHRASES = ['얼마예요?', '깎아 주세요', '카드 되나요?'];
+const PHRASES = [
+  { key: 'main.phraseHowMuch', fallback: '얼마예요?' },
+  { key: 'main.phraseDiscount', fallback: '깎아 주세요' },
+  { key: 'main.phraseCard', fallback: '카드 되나요?' },
+];
 
 /**
  * §⑥ 기본 회화.
@@ -13,6 +18,7 @@ const PHRASES = ['얼마예요?', '깎아 주세요', '카드 되나요?'];
  */
 export function PhraseCard() {
   const { scheme } = useTheme();
+  const { t } = useI18n();
 
   return (
     <View
@@ -21,20 +27,24 @@ export function PhraseCard() {
     >
       <View className="flex-row items-center gap-2">
         <MessagesSquare size={16} color={scheme.mutedForeground} />
-        <Text className="text-sm font-bold text-neutral-500 dark:text-neutral-400">기본 회화</Text>
+        <Text className="text-sm font-bold text-neutral-500 dark:text-neutral-400">
+          {t('main.basicPhrases', '기본 회화')}
+        </Text>
       </View>
 
       <View className="gap-2">
         {PHRASES.map((phrase) => (
           <View
-            key={phrase}
+            key={phrase.key}
             style={{ backgroundColor: scheme.muted }}
             className="flex-row items-center justify-between rounded-2xl px-4 py-3"
           >
             <Text className="text-base font-bold text-neutral-900 dark:text-neutral-50">
-              {phrase}
+              {t(phrase.key, phrase.fallback)}
             </Text>
-            <Text className="text-base font-semibold text-neutral-400">준비 중</Text>
+            <Text className="text-base font-semibold text-neutral-400">
+              {t('main.comingSoonShort', '준비 중')}
+            </Text>
           </View>
         ))}
       </View>

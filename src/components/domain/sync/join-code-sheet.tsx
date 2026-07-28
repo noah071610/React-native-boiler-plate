@@ -14,12 +14,11 @@ import { SheetLayout } from '@/components/ui/sheet-layout';
 import { db } from '@/db';
 import { expenses } from '@/db/schema';
 import { useTheme } from '@/hooks/use-theme';
+import { useI18n } from '@/i18n';
 import { haptics } from '@/lib/haptics';
 import { joinSharedTrip, runSync } from '@/lib/sync';
 import { MAX_PARTICIPANTS, getRoom, syncErrorMessage, type SyncRoom } from '@/services/api/sync';
 import { useAppStore } from '@/store/app';
-
-const DEFAULT_NAME = '나';
 
 /** 서버가 발급하는 코드는 `THB-7F2A` — 통화 3자 + 난수 4자다. 대시는 화면이 그린다. */
 const PREFIX_LENGTH = 3;
@@ -65,6 +64,7 @@ export function JoinCodeSheet({
   onError: (message: string) => void;
 }) {
   const { scheme } = useTheme();
+  const { t } = useI18n();
   const markSynced = useAppStore((state) => state.markSynced);
 
   const expenseQuery = useLiveQuery(db.select().from(expenses).where(isNull(expenses.deletedAt)));
@@ -76,7 +76,7 @@ export function JoinCodeSheet({
   /** 확인한 방. 경고에 답할 때까지 여기 들고 있는다 */
   const [pending, setPending] = useState<SyncRoom | null>(null);
 
-  const name = () => nameDraft.trim() || DEFAULT_NAME;
+  const name = () => nameDraft.trim() || t('sync.defaultName', '나');
 
   const close = () => {
     setCodeDraft('');
@@ -93,7 +93,7 @@ export function JoinCodeSheet({
     try {
       const room = await getRoom(code);
       if (room.participants.length >= MAX_PARTICIPANTS) {
-        onError('이미 두 명이 함께 기록하고 있는 여행이에요');
+        onError(t('sync.roomFull', '이미 두 명이 함께 기록하고 있는 여행이에요'));
         return;
       }
       setPending(room);
@@ -125,7 +125,11 @@ export function JoinCodeSheet({
       } catch (error) {
         // 참가를 되돌릴 이유는 아니다 (여행은 이미 따라갔다). 다만 조용히 넘기면
         // "여행은 왔는데 가계부만 비어 있는" 화면을 유저가 이유도 모른 채 본다.
-        onError(`${syncErrorMessage(error)} 함께 기록하기에서 동기화를 다시 눌러주세요.`);
+        onError(
+          t('sync.retrySyncAfterJoin', '{{message}} 함께 기록하기에서 동기화를 다시 눌러주세요.', {
+            message: syncErrorMessage(error),
+          }),
+        );
         return;
       }
       haptics.notification();
@@ -139,12 +143,15 @@ export function JoinCodeSheet({
     <SheetLayout
       visible={visible}
       onClose={close}
-      title="초대 코드 입력"
-      subtitle="상대에게 받은 코드를 넣으면 그 사람의 여행으로 넘어가요"
-      primaryLabel={busy ? '확인 중…' : '참가하기'}
+      title={t('settings.joinCode', '초대 코드 입력')}
+      subtitle={t(
+        'sync.joinCodeSubtitle',
+        '상대에게 받은 코드를 넣으면 그 사람의 여행으로 넘어가요',
+      )}
+      primaryLabel={busy ? t('sync.checking', '확인 중…') : t('sync.join', '참가하기')}
       primaryDisabled={busy || codeDraft.length < CODE_LENGTH || nameDraft.trim().length === 0}
       onPrimary={() => void lookup()}
-      secondaryLabel="취소"
+      secondaryLabel={t('common.cancel', '취소')}
     >
       <View className="gap-3">
         <CodeInput value={codeDraft} onChange={setCodeDraft} autoFocus={visible} />
@@ -152,9 +159,9 @@ export function JoinCodeSheet({
           value={nameDraft}
           onChangeText={setNameDraft}
           maxLength={12}
-          placeholder="내 별명 입력"
+          placeholder={t('sync.namePlaceholder', '내 별명 입력')}
           placeholderTextColor={scheme.mutedForeground}
-          accessibilityLabel="내 이름"
+          accessibilityLabel={t('sync.myName', '내 이름')}
           style={{
             color: scheme.foreground,
             borderColor: scheme.border,
@@ -171,19 +178,33 @@ export function JoinCodeSheet({
       */}
       <ConfirmDialog
         visible={pending != null}
-        title={myExpenseCount > 0 ? '이 기기의 기록이 전부 사라져요' : '이 사용자를 따라갈까요?'}
+        title={
+          myExpenseCount > 0
+            ? t('sync.deviceRecordsWillDisappear', '이 기기의 기록이 전부 사라져요')
+            : t('sync.followUserTitle', '이 사용자를 따라갈까요?')
+        }
         message={
           myExpenseCount > 0
-            ? `참가하면 이 기기의 여행과 지출 ${myExpenseCount}건이 모두 삭제되고, 코드를 보낸 사람의 여행을 따라가요. 되돌릴 수 없어요.\n\n내 기록을 그대로 두고 싶다면 반대로 하세요 — 내가 초대 코드를 만들어 상대에게 보내면 상대가 나를 따라와요.`
-            : '코드를 보낸 사람의 데이터로 동기화됩니다. 되돌릴 수 없어요.'
+            ? t(
+                'sync.joinWarningWithRecords',
+                '참가하면 이 기기의 여행과 지출 {{count}}건이 모두 삭제되고, 코드를 보낸 사람의 여행을 따라가요. 되돌릴 수 없어요.\n\n내 기록을 그대로 두고 싶다면 반대로 하세요 — 내가 초대 코드를 만들어 상대에게 보내면 상대가 나를 따라와요.',
+                { count: myExpenseCount },
+              )
+            : t(
+                'sync.joinWarningEmpty',
+                '코드를 보낸 사람의 데이터로 동기화됩니다. 되돌릴 수 없어요.',
+              )
         }
         actions={[
           {
-            label: myExpenseCount > 0 ? '지우고 참가하기' : '참가하기',
+            label:
+              myExpenseCount > 0
+                ? t('sync.deleteAndJoin', '지우고 참가하기')
+                : t('sync.join', '참가하기'),
             variant: myExpenseCount > 0 ? 'destructive' : 'primary',
             onPress: () => void join(),
           },
-          { label: '취소', variant: 'ghost', onPress: () => setPending(null) },
+          { label: t('common.cancel', '취소'), variant: 'ghost', onPress: () => setPending(null) },
         ]}
         onDismiss={() => setPending(null)}
       />
@@ -208,6 +229,7 @@ function CodeInput({
   autoFocus?: boolean;
 }) {
   const { scheme } = useTheme();
+  const { t } = useI18n();
   const inputRef = useRef<TextInput>(null);
   const [focused, setFocused] = useState(false);
 
@@ -225,7 +247,7 @@ function CodeInput({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="초대 코드 입력"
+      accessibilityLabel={t('settings.joinCode', '초대 코드 입력')}
       onPress={() => inputRef.current?.focus()}
       // 칸 너비를 고정하지 않는다 — 7칸 + 대시는 작은 화면(SE)에서 가로를 넘긴다
       className="w-full flex-row items-center gap-1.5"

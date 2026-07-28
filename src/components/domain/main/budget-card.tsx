@@ -11,7 +11,7 @@ import Animated, {
 
 import { AnimatedNumberText } from '@/components/ui/animated-number';
 import { useTheme } from '@/hooks/use-theme';
-import { formatMoney } from '@/lib/money';
+import { formatMoneyI18n, useI18n } from '@/i18n';
 
 type Props = {
   /** 최소단위. null이면 예산 미설정 상태 */
@@ -52,7 +52,9 @@ export function BudgetCard({
   onPress,
 }: Props) {
   const { scheme } = useTheme();
+  const { resolvedLanguage, t } = useI18n();
   const remaining = (budgetAmount ?? 0) - spentBase;
+  const money = (minor: number) => formatMoneyI18n(minor, currency, t, resolvedLanguage);
 
   const flash = useSharedValue(0);
   useEffect(() => {
@@ -81,7 +83,7 @@ export function BudgetCard({
       >
         <View className="flex-1 pr-3">
           <Text className="text-lg font-bold leading-7 text-neutral-900 dark:text-neutral-50">
-            예산을 정하면{'\n'}기간별 분석 결과를 알려드려요
+            {t('main.budgetEmpty', '예산을 정하면\n기간별 분석 결과를 알려드려요')}
           </Text>
         </View>
         <ChevronRight size={22} color={scheme.mutedForeground} />
@@ -100,11 +102,13 @@ export function BudgetCard({
       style={[{ backgroundColor: scheme.card }, flashStyle]}
       className="rounded-3xl border p-5 active:opacity-90"
     >
-      <Text className="text-sm font-bold text-neutral-500 dark:text-neutral-400">남은 예산</Text>
+      <Text className="text-sm font-bold text-neutral-500 dark:text-neutral-400">
+        {t('main.remainingBudget', '남은 예산')}
+      </Text>
 
       <View className="mt-2">
         <AnimatedNumberText
-          text={`${over ? '-' : ''}${formatMoney(Math.abs(remaining), currency)}`}
+          text={`${over ? '-' : ''}${money(Math.abs(remaining))}`}
           direction={direction}
           style={{ color: over ? scheme.destructive : scheme.foreground }}
           className="text-4xl font-black tracking-tight"
@@ -118,23 +122,35 @@ export function BudgetCard({
       />
 
       <Text className="mt-1.5 text-xs font-semibold text-neutral-400">
-        {over ? `예산 대비 ${usedPercent}%` : `${100 - usedPercent}% 남음`}
+        {over
+          ? t('main.budgetUsedPercent', '예산 대비 {{percent}}%', { percent: usedPercent })
+          : t('main.budgetRemainingPercent', '{{percent}}% 남음', {
+              percent: 100 - usedPercent,
+            })}
       </Text>
 
       <View className="mt-4 gap-1">
         {dailyAvg != null ? (
           <Text className="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
-            하루 평균 {formatMoney(dailyAvg, currency)} 쓰는 중
+            {t('main.dailyAverage', '하루 평균 {{amount}} 쓰는 중', {
+              amount: money(dailyAvg),
+            })}
           </Text>
         ) : null}
 
         {daysLeft != null && dailyAllowance != null ? (
           <Text className="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
-            남은 {daysLeft}일 · 하루 {formatMoney(dailyAllowance, currency)} 가능
+            {t('main.dailyAllowance', '남은 {{days}}일 · 하루 {{amount}} 가능', {
+              days: daysLeft,
+              amount: money(dailyAllowance),
+            })}
           </Text>
         ) : daysLeft == null ? (
           <Text className="text-sm font-semibold" style={{ color: scheme.primary }}>
-            여행 기간을 정하면 남은 금액과 하루 지출액 등 분석 결과를 알려드려요
+            {t(
+              'main.budgetNeedsTripPeriod',
+              '여행 기간을 정하면 남은 금액과 하루 지출액 등 분석 결과를 알려드려요',
+            )}
           </Text>
         ) : null}
       </View>
@@ -157,20 +173,22 @@ export function AddTripCard({
   onPress: () => void;
 }) {
   const { scheme } = useTheme();
+  const { t } = useI18n();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="여행지 추가하기"
+      accessibilityLabel={t('main.addTrip', '여행지 추가하기')}
       onPress={onPress}
       style={{ backgroundColor: scheme.card, borderColor: scheme.border }}
       className="flex-row items-center rounded-3xl border p-5 active:opacity-80"
     >
       <View className="flex-1 pr-3">
         <Text className="text-lg font-bold leading-7 text-neutral-900 dark:text-neutral-50">
-          여행지 추가하기
+          {t('main.addTrip', '여행지 추가하기')}
         </Text>
         <Text className="mt-1 text-sm font-semibold text-neutral-400">
-          {nextTripLabel ?? '나라와 기간, 예산을 정하면 여행이 시작돼요'}
+          {nextTripLabel ??
+            t('main.addTripDescription', '나라와 기간, 예산을 정하면 여행이 시작돼요')}
         </Text>
       </View>
       <ChevronRight size={22} color={scheme.mutedForeground} />

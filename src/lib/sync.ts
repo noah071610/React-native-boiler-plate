@@ -174,7 +174,10 @@ export async function mergeBundle(bundle: SyncBundle, myParticipantId: string): 
       await db.insert(participants).values({ ...person, isMe: false });
     } else if (incomingWins(local, person)) {
       const { id: _id, ...rest } = person;
-      await db.update(participants).set({ ...rest, isMe: false }).where(eq(participants.id, person.id));
+      await db
+        .update(participants)
+        .set({ ...rest, isMe: false })
+        .where(eq(participants.id, person.id));
     }
   }
 
@@ -353,6 +356,7 @@ export async function startSharing(trip: Trip, me: Participant, myName: string):
   const room = await createRoom({
     tripId: trip.id,
     destinationCurrency: trip.destinationCurrency,
+    destinationCountryCode: trip.destinationCountryCode,
     baseCurrency: trip.baseCurrency,
     startDate: trip.startDate,
     endDate: trip.endDate,
@@ -472,6 +476,7 @@ export async function joinSharedTrip(
     id: room.tripId,
     name: room.name ?? null,
     destinationCurrency: room.destinationCurrency,
+    destinationCountryCode: room.destinationCountryCode ?? null,
     baseCurrency: room.baseCurrency,
     startDate: room.startDate ?? null,
     endDate: room.endDate ?? null,

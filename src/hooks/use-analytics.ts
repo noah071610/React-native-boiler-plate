@@ -119,6 +119,9 @@ type Params = {
   trip: Trip | null;
   expenses: Expense[];
   categories: Category[];
+  categoryLabelOf?: (category: Category) => string;
+  otherCategoryLabel?: string;
+  dateLabelOf?: (key: string) => string;
   participants: Participant[];
   myParticipantId: string | null;
   /** 카테고리 색. scheme.chart1..5를 넘긴다 */
@@ -137,6 +140,9 @@ export function useAnalytics({
   trip,
   expenses,
   categories,
+  categoryLabelOf = categoryLabel,
+  otherCategoryLabel = '기타',
+  dateLabelOf = MD,
   participants,
   myParticipantId,
   palette,
@@ -162,8 +168,7 @@ export function useAnalytics({
      * 집에 있던 날까지 분모에 들어가면 "현지에서 하루 얼마 썼나"가 흐려진다.
      */
     const startDate = trip.startDate;
-    const isPreTrip = (e: Expense) =>
-      startDate != null && localDateKey(e.occurredAt) < startDate;
+    const isPreTrip = (e: Expense) => startDate != null && localDateKey(e.occurredAt) < startDate;
 
     const dayKeys = expenses.map((e) => localDateKey(e.occurredAt)).sort();
     const todayKey = localDateKey(Date.now());
@@ -227,7 +232,7 @@ export function useAnalytics({
         return {
           id,
           icon: category?.icon ?? '💸',
-          label: category ? categoryLabel(category) : '기타',
+          label: category ? categoryLabelOf(category) : otherCategoryLabel,
           color: palette[i % palette.length],
           minor: acc.minor,
           baseMinor: acc.baseMinor,
@@ -238,13 +243,10 @@ export function useAnalytics({
     /* ③ 일별 추이 */
     const trendFrom = span > MAX_TREND_DAYS ? addDays(lastKey, -(MAX_TREND_DAYS - 1)) : firstKey;
     const trendLength = Math.min(span, MAX_TREND_DAYS);
-    const values: { key: string; value: number }[] = Array.from(
-      { length: trendLength },
-      (_, i) => {
-        const key = addDays(trendFrom, i);
-        return { key, value: perDay.get(key) ?? 0 };
-      },
-    );
+    const values: { key: string; value: number }[] = Array.from({ length: trendLength }, (_, i) => {
+      const key = addDays(trendFrom, i);
+      return { key, value: perDay.get(key) ?? 0 };
+    });
     const avg = values.length > 0 ? values.reduce((s, v) => s + v.value, 0) / values.length : 0;
     const daily: DailyPoint[] = values.map(({ key, value }) => ({
       key,
@@ -273,7 +275,7 @@ export function useAnalytics({
         return {
           id,
           icon: category?.icon ?? '💸',
-          label: category ? categoryLabel(category) : '기타',
+          label: category ? categoryLabelOf(category) : otherCategoryLabel,
           medianMinor,
           latestMinor,
           trend:
@@ -355,7 +357,7 @@ export function useAnalytics({
     }
 
     return {
-      rangeLabel: `${MD(firstKey)} – ${MD(lastKey)}`,
+      rangeLabel: `${dateLabelOf(firstKey)} – ${dateLabelOf(lastKey)}`,
       days,
       currency,
       baseCurrency: trip.baseCurrency,
@@ -376,5 +378,15 @@ export function useAnalytics({
       settlement,
       usage,
     };
-  }, [expenses, trip, categoryById, participants, myParticipantId, palette]);
+  }, [
+    expenses,
+    trip,
+    categoryById,
+    categoryLabelOf,
+    otherCategoryLabel,
+    dateLabelOf,
+    participants,
+    myParticipantId,
+    palette,
+  ]);
 }

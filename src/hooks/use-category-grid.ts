@@ -1,10 +1,9 @@
 import { asc, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 
 import { db } from '@/db';
 import { categories, type Category, type Expense } from '@/db/schema';
-import { seedDefaultCategories } from '@/lib/seed-categories';
 
 /** 첫 행 4칸만 사용 빈도순으로 앞당기고, 나머지는 기본 순서를 그대로 둔다. */
 function withFrequentFirst(rows: Category[], expenses: Expense[]): Category[] {
@@ -36,12 +35,8 @@ export function useCategoryGrid(expenses: Expense[]): Category[] {
       .where(isNull(categories.hiddenAt))
       .orderBy(asc(categories.sortOrder)),
   );
+  // 시드는 루트 레이아웃에서 마이그레이션 직후 한 번 돈다 (여기서 돌면 여행이 있어야만 심긴다)
   const rows = query.data;
-
-  useEffect(() => {
-    // undefined는 로딩 중, 빈 배열이어야 진짜 비어 있는 것이다
-    if (rows && rows.length === 0) void seedDefaultCategories();
-  }, [rows]);
 
   /** 고정된 순서를 id로만 들고 있는다 (행 내용은 매번 최신 것을 쓴다) */
   const frozen = useRef<string[] | null>(null);

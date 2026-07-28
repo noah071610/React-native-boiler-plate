@@ -20,17 +20,30 @@ import { DayGrid, HOUR_HEIGHT, type ExpenseMeta } from '@/components/domain/time
 import { TimelineHeader } from '@/components/domain/timeline/timeline-header';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { FullScreenLoader } from '@/components/ui/full-screen-loader';
-import { categoryLabel } from '@/constants/categories';
-import { countryNameOfCurrency } from '@/constants/currencies';
+import { findCountryByCode, findCountryByCurrency, type CountryInfo } from '@/constants/currencies';
 import { db } from '@/db';
-import { categories, expenses, participants, type Expense } from '@/db/schema';
+import { categories, expenses, participants, type Category, type Expense } from '@/db/schema';
 import { useActiveTrip } from '@/hooks/use-active-trip';
 import { useTheme } from '@/hooks/use-theme';
-import { useTimelineDays } from '@/hooks/use-timeline-days';
+import { EMPTY_DAY_TOTAL, useDayTotals, useTimelineDays } from '@/hooks/use-timeline-days';
+import { categoryDisplayLabel, useI18n } from '@/i18n';
 import { haptics } from '@/lib/haptics';
 import { useRate } from '@/lib/rates';
 import { insertExpense } from '@/lib/save-expense';
 import { useAppStore } from '@/store/app';
+
+type T = ReturnType<typeof useI18n>['t'];
+
+const countryLabel = (country: CountryInfo, t: T) => t(`country.${country.code}`, country.nameKo);
+
+const destinationName = (
+  countryCode: string | null | undefined,
+  currency: string,
+  t: T,
+): string => {
+  const country = findCountryByCode(countryCode) ?? findCountryByCurrency(currency);
+  return country ? countryLabel(country, t) : currency;
+};
 
 /**
  * 타임라인 — 캘린더 일별 보기의 시간 축을 그대로 쓴다.
@@ -40,6 +53,7 @@ import { useAppStore } from '@/store/app';
 export default function TimelineScreen() {
   const router = useRouter();
   const { scheme } = useTheme();
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const addRecentCalc = useAppStore((s) => s.addRecentCalc);
 
@@ -79,14 +93,22 @@ export default function TimelineScreen() {
   const [pendingDelete, setPendingDelete] = useState<Expense | null>(null);
   /** 하단 + — 메인과 같은 계산기 시트를 그대로 띄운다 */
   const [calcOpen, setCalcOpen] = useState(false);
+  const categoryNameOf = useCallback(
+    (category: Category) => categoryDisplayLabel(category, t),
+    [t],
+  );
 
   const days = useTimelineDays({
     expenses: rows,
     categories: categoryRows,
+    categoryLabelOf: categoryNameOf,
     startDate: trip?.startDate ?? null,
     selectedCategoryIds,
     query,
   });
+
+  // 하루 총합은 필터를 타지 않는다 — "오늘 얼마 썼나"가 카테고리를 누를 때마다 바뀌면 지표가 아니다
+  const dayTotals = useDayTotals(rows);
 
   /* 스크롤 위치 → 헤더 날짜. 각 날 블록의 y를 기억해두고 맨 위에 걸린 날을 고른다. */
   const scrollRef = useRef<ScrollView>(null);
@@ -149,16 +171,20 @@ export default function TimelineScreen() {
       const shared = participantRows.filter((p) => p.deletedAt == null).length >= 2;
       return {
         icon: category?.icon ?? '💸',
-        label: category ? categoryLabel(category) : '지출',
+        label: category ? categoryNameOf(category) : t('timeline.expenseFallback', '지출'),
         color: chart[(index < 0 ? 0 : index) % chart.length],
-        authorName: expense.authorId === myParticipantId ? null : (author?.name ?? '동행자'),
+        authorName:
+          expense.authorId === myParticipantId
+            ? null
+            : (author?.name ?? t('timeline.companion', '동행자')),
         usedByName:
           shared && expense.usedBy
-            ? (participantRows.find((p) => p.id === expense.usedBy)?.name ?? '동행자')
+            ? (participantRows.find((p) => p.id === expense.usedBy)?.name ??
+              t('timeline.companion', '동행자'))
             : null,
       };
     },
-    [categoryRows, participantRows, myParticipantId, scheme],
+    [categoryRows, participantRows, myParticipantId, scheme, t, categoryNameOf],
   );
 
   const toggleCategory = (id: string | null) => {
@@ -216,7 +242,7 @@ export default function TimelineScreen() {
     haptics.notification();
   };
 
-  if (loading) return <FullScreenLoader title="타임라인을 불러오는 중" />;
+  if (loading) return <FullScreenLoader title={t('timeline.loading', '타임라인을 불러오는 중')} />;
 
   // 여행이 하나도 없으면 기록도 없다 — 로더를 계속 돌리지 않고 이유를 말한다
   if (!trip) {
@@ -232,13 +258,16 @@ export default function TimelineScreen() {
           <Plane size={30} color={scheme.primary} />
         </View>
         <Text className="text-center text-xl font-black text-neutral-900 dark:text-neutral-50">
-          아직 여행지 설정이 안되어있어요
+          {t('analytics.noTripTitle', '아직 여행지 설정이 안되어있어요')}
         </Text>
         <Text
           className="text-center text-sm font-semibold leading-relaxed"
           style={{ color: scheme.mutedForeground }}
         >
-          메인에서 여행지를 추가하면{'\n'}그 기간의 지출 기록이 여기에 쌓여요
+          {t(
+            'timeline.noTripDescription',
+            '메인에서 여행지를 추가하면\n그 기간의 지출 기록이 여기에 쌓여요',
+          )}
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -250,7 +279,7 @@ export default function TimelineScreen() {
           className="mt-3 rounded-full px-6 py-3.5 active:opacity-80"
         >
           <Text style={{ color: scheme.primaryForeground }} className="text-sm font-bold">
-            메인으로
+            {t('common.goMain', '메인으로')}
           </Text>
         </Pressable>
       </View>
@@ -259,11 +288,13 @@ export default function TimelineScreen() {
 
   const filtering = selectedCategoryIds.length > 0 || query.trim().length > 0;
   const empty = rows.length === 0;
+  const activeDay = days[activeIndex] ?? days[0] ?? null;
 
   return (
     <View className="flex-1" style={{ backgroundColor: scheme.background, paddingTop: insets.top }}>
       <TimelineHeader
-        day={days[activeIndex] ?? days[0] ?? null}
+        day={activeDay}
+        total={(activeDay && dayTotals.get(activeDay.key)) || EMPTY_DAY_TOTAL}
         localCurrency={trip.destinationCurrency}
         baseCurrency={trip.baseCurrency}
         categories={categoryRows}
@@ -289,13 +320,16 @@ export default function TimelineScreen() {
             <ReceiptText size={30} color={scheme.primary} />
           </View>
           <Text className="text-center text-xl font-black text-neutral-900 dark:text-neutral-50">
-            아직 기록이 없어요
+            {t('timeline.emptyTitle', '아직 기록이 없어요')}
           </Text>
           <Text
             className="text-center text-sm font-semibold leading-relaxed"
             style={{ color: scheme.mutedForeground }}
           >
-            메인에서 환율을 계산하고{'\n'}기록하기를 누르면 여기에 쌓여요
+            {t(
+              'timeline.emptyDescription',
+              '메인에서 환율을 계산하고\n기록하기를 누르면 여기에 쌓여요',
+            )}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -307,7 +341,7 @@ export default function TimelineScreen() {
             className="mt-3 rounded-full px-6 py-3.5 active:opacity-80"
           >
             <Text style={{ color: scheme.primaryForeground }} className="text-sm font-bold">
-              메인으로
+              {t('common.goMain', '메인으로')}
             </Text>
           </Pressable>
         </View>
@@ -324,12 +358,20 @@ export default function TimelineScreen() {
               className="py-16 text-center text-sm font-semibold"
               style={{ color: scheme.mutedForeground }}
             >
-              조건에 맞는 기록이 없어요
+              {t('timeline.noMatchingRecords', '조건에 맞는 기록이 없어요')}
             </Text>
           ) : (
             days.map((day, index) => (
               <View key={day.key} onLayout={onDayLayout(index)}>
-                <DayGrid day={day} metaOf={metaOf} onPress={openExpense} onLongPress={askDelete} />
+                <DayGrid
+                  day={day}
+                  total={dayTotals.get(day.key) ?? EMPTY_DAY_TOTAL}
+                  localCurrency={trip.destinationCurrency}
+                  baseCurrency={trip.baseCurrency}
+                  metaOf={metaOf}
+                  onPress={openExpense}
+                  onLongPress={askDelete}
+                />
               </View>
             ))
           )}
@@ -338,7 +380,7 @@ export default function TimelineScreen() {
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="지출 추가"
+        accessibilityLabel={t('timeline.addExpense', '지출 추가')}
         onPress={() => {
           haptics.selection();
           setCalcOpen(true);
@@ -353,6 +395,7 @@ export default function TimelineScreen() {
         visible={calcOpen}
         side="local"
         localCurrency={trip.destinationCurrency}
+        localCountryCode={trip.destinationCountryCode}
         baseCurrency={trip.baseCurrency}
         rate={quote?.rate ?? 0}
         tripId={trip.id}
@@ -361,7 +404,17 @@ export default function TimelineScreen() {
         canRecord={phase !== 'after' && myParticipantId != null}
         notice={
           phase === 'before'
-            ? `✈️ 아직 여행 전이에요 · ${countryNameOfCurrency(trip.destinationCurrency)} 여행 지출로 기록돼요`
+            ? t(
+                'dashboard.recordNotice',
+                '✈️ 아직 여행 전이에요 · {{country}} 여행 지출로 기록돼요',
+                {
+                  country: destinationName(
+                    trip.destinationCountryCode,
+                    trip.destinationCurrency,
+                    t,
+                  ),
+                },
+              )
             : null
         }
         onClose={() => setCalcOpen(false)}
@@ -370,11 +423,19 @@ export default function TimelineScreen() {
 
       <ConfirmDialog
         visible={pendingDelete != null}
-        title="이 기록을 지울까요?"
-        message="지운 기록은 되돌릴 수 없어요."
+        title={t('timeline.deleteTitle', '이 기록을 지울까요?')}
+        message={t('timeline.deleteMessage', '지운 기록은 되돌릴 수 없어요.')}
         actions={[
-          { label: '삭제', variant: 'destructive', onPress: () => void confirmDelete() },
-          { label: '취소', variant: 'ghost', onPress: () => setPendingDelete(null) },
+          {
+            label: t('common.delete', '삭제'),
+            variant: 'destructive',
+            onPress: () => void confirmDelete(),
+          },
+          {
+            label: t('common.cancel', '취소'),
+            variant: 'ghost',
+            onPress: () => setPendingDelete(null),
+          },
         ]}
         onDismiss={() => setPendingDelete(null)}
       />

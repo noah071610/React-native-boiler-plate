@@ -120,8 +120,14 @@ export function useRate(quote: string, base: string): RateQuote | null {
 }
 
 /** "7월 24일 환율" 같은 표기용. */
-export function formatRateDate(date: string): string {
-  const [, month, day] = date.split('-');
-  if (!month || !day) return date;
-  return `${Number(month)}월 ${Number(day)}일`;
+export function formatRateDate(date: string, locale = 'ko-KR'): string {
+  const [year, month, day] = date.split('-').map(Number);
+  if (!year || !month || !day) return date;
+  if (locale.startsWith('ja')) return `${month}月${day}日`;
+  if (locale.startsWith('en')) {
+    return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(
+      new Date(year, month - 1, day),
+    );
+  }
+  return `${month}월 ${day}일`;
 }

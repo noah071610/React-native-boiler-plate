@@ -18,6 +18,7 @@ import { db } from '@/db';
 import { participants } from '@/db/schema';
 import { localDateKey, useActiveTrip } from '@/hooks/use-active-trip';
 import { useTheme } from '@/hooks/use-theme';
+import { useI18n } from '@/i18n';
 import { haptics } from '@/lib/haptics';
 import { formatRateDate } from '@/lib/rates';
 import {
@@ -50,6 +51,7 @@ const DEFAULT_NAME = '나';
 export default function SyncScreen() {
   const router = useRouter();
   const { scheme } = useTheme();
+  const { locale, t } = useI18n();
   const insets = useSafeAreaInsets();
 
   const { trip, expenses: rows, myParticipantId, loading } = useActiveTrip();
@@ -86,22 +88,28 @@ export default function SyncScreen() {
   const myExpenseCount = rows.filter((e) => e.authorId === myParticipantId).length;
   const shareCode = trip?.shareCode ?? null;
 
-  if (loading) return <FullScreenLoader title="불러오는 중" />;
+  if (loading) return <FullScreenLoader title={t('sync.loading', '불러오는 중')} />;
 
   // 함께 기록할 여행 자체가 없으면 초대 코드도 의미가 없다
   if (!trip) {
     return (
       <View className="flex-1" style={{ backgroundColor: scheme.background }}>
-        <SectionHeader title="함께 기록하기" onBack={() => router.back()} />
+        <SectionHeader
+          title={t('settings.recordTogether', '함께 기록하기')}
+          onBack={() => router.back()}
+        />
         <View className="flex-1 items-center justify-center gap-2 px-10">
           <Text className="text-lg font-black text-neutral-900 dark:text-neutral-50">
-            먼저 여행을 만들어주세요
+            {t('sync.needTripTitle', '먼저 여행을 만들어주세요')}
           </Text>
           <Text
             className="text-center text-sm font-semibold"
             style={{ color: scheme.mutedForeground }}
           >
-            메인의 여행지 추가하기에서 나라와 기간을 정하면 초대할 수 있어요
+            {t(
+              'sync.needTripDescription',
+              '메인의 여행지 추가하기에서 나라와 기간을 정하면 초대할 수 있어요',
+            )}
           </Text>
         </View>
       </View>
@@ -123,7 +131,7 @@ export default function SyncScreen() {
   const create = async () => {
     // 조용히 아무 일도 안 일어나는 것이 제일 나쁘다 — 이유를 말하고 끝낸다
     if (!me) {
-      setToast('내 참가자 정보를 찾지 못했어요. 앱을 다시 열어주세요.');
+      setToast(t('sync.noMe', '내 참가자 정보를 찾지 못했어요. 앱을 다시 열어주세요.'));
       return;
     }
     setBusy(true);
@@ -131,7 +139,7 @@ export default function SyncScreen() {
       const room = await startSharing(trip, me, name());
       close();
       haptics.notification();
-      setToast(`초대 코드 ${room.code}를 만들었어요`);
+      setToast(t('sync.createdCode', '초대 코드 {{code}}를 만들었어요', { code: room.code }));
     } catch (error) {
       fail(error);
     } finally {
@@ -148,7 +156,11 @@ export default function SyncScreen() {
     if (!shareCode) return;
     haptics.selection();
     void Share.share({
-      message: `Tabica 초대 코드: ${shareCode}\n앱 설정 → 데이터 → 초대 코드 입력에 이 코드를 넣으면 같은 여행을 함께 기록할 수 있어요.`,
+      message: t(
+        'sync.shareMessage',
+        'Tabica 초대 코드: {{code}}\n앱 설정 → 데이터 → 초대 코드 입력에 이 코드를 넣으면 같은 여행을 함께 기록할 수 있어요.',
+        { code: shareCode },
+      ),
     });
   };
 
@@ -160,7 +172,7 @@ export default function SyncScreen() {
     try {
       const room = await resetShareCode(trip, me);
       haptics.notification();
-      setToast(`새 초대 코드 ${room.code}를 만들었어요`);
+      setToast(t('sync.reissuedCode', '새 초대 코드 {{code}}를 만들었어요', { code: room.code }));
     } catch (error) {
       fail(error);
     } finally {
@@ -198,15 +210,20 @@ export default function SyncScreen() {
   };
 
   const lastSyncText = lastSyncAt
-    ? `마지막 동기화 ${formatRateDate(localDateKey(lastSyncAt))}`
-    : '아직 동기화한 적이 없어요';
+    ? t('settings.lastSync', '마지막 동기화 {{date}}', {
+        date: formatRateDate(localDateKey(lastSyncAt), locale),
+      })
+    : t('settings.notSyncedYet', '아직 동기화한 적이 없어요');
 
   /** 결과 다이얼로그를 닫은 뒤에 중복 확인을 띄운다 — 한 번에 하나만 묻는다. */
   const showDuplicates = result == null && dupIndex < duplicates.length;
 
   return (
     <View className="flex-1" style={{ backgroundColor: scheme.background }}>
-      <SectionHeader title="함께 기록하기" onBack={() => router.back()} />
+      <SectionHeader
+        title={t('settings.recordTogether', '함께 기록하기')}
+        onBack={() => router.back()}
+      />
 
       <ScrollView
         contentContainerStyle={{
@@ -219,10 +236,12 @@ export default function SyncScreen() {
           <>
             {/* 연동이 끝나면 이 코드는 더 부를 사람이 없다 — 공유·재발급을 전부 내린다.
                 끊고 싶으면 설정의 "연동 끊기"가 답이다 (그쪽이 기록을 지키면서 끊는 유일한 길). */}
-            <SettingsSection label="초대 코드">
+            <SettingsSection label={t('sync.inviteCode', '초대 코드')}>
               <View className="items-center gap-3">
                 <Text className="text-sm font-semibold text-neutral-400">
-                  {linked ? '이 코드로 함께 기록하고 있어요' : '아래 코드를 상대에게 보내세요'}
+                  {linked
+                    ? t('sync.linkedCodeHint', '이 코드로 함께 기록하고 있어요')
+                    : t('sync.sendCodeHint', '아래 코드를 상대에게 보내세요')}
                 </Text>
                 <View
                   style={{ backgroundColor: scheme.primarySoft }}
@@ -239,33 +258,38 @@ export default function SyncScreen() {
                   <>
                     <View className="w-full">
                       <Button
-                        label="공유"
+                        label={t('sync.share', '공유')}
                         size="md"
                         icon={<Share2 size={16} color={scheme.primaryForeground} />}
                         onPress={shareInvite}
                       />
                     </View>
                     <Text className="text-center text-xs font-semibold text-neutral-400">
-                      상대가 이 코드를 입력하면{'\n'}같은 여행을 함께 기록할 수 있어요
+                      {t(
+                        'sync.codeHelp',
+                        '상대가 이 코드를 입력하면\n같은 여행을 함께 기록할 수 있어요',
+                      )}
                     </Text>
                   </>
                 )}
               </View>
             </SettingsSection>
 
-            <SettingsSection label="참가자">
+            <SettingsSection label={t('sync.participants', '참가자')}>
               <View className="gap-4">
                 <SettingsRow
                   icon={<Users size={18} color={scheme.primary} />}
-                  title={me?.name ?? DEFAULT_NAME}
-                  description={`나 · 기록 ${myExpenseCount}건`}
+                  title={me?.name ?? t('sync.defaultName', DEFAULT_NAME)}
+                  description={t('sync.meRecordCount', '나 · 기록 {{count}}건', {
+                    count: myExpenseCount,
+                  })}
                   right={
                     <Text
                       onPress={() => openSheet('rename')}
                       className="px-1 text-sm font-bold"
                       style={{ color: scheme.primary }}
                     >
-                      이름 바꾸기
+                      {t('sync.rename', '이름 바꾸기')}
                     </Text>
                   }
                 />
@@ -276,30 +300,39 @@ export default function SyncScreen() {
                     key={person.id}
                     icon={<Users size={18} color={scheme.mutedForeground} />}
                     title={person.name}
-                    description={`기록 ${rows.filter((e) => e.authorId === person.id).length}건`}
+                    description={t('sync.recordCount', '기록 {{count}}건', {
+                      count: rows.filter((e) => e.authorId === person.id).length,
+                    })}
                     active={false}
                   />
                 ))}
                 {others.length === 0 ? (
                   <Text className="text-xs font-semibold text-neutral-400">
-                    상대가 코드를 입력하면 여기에 나타나요
+                    {t('sync.waitingParticipant', '상대가 코드를 입력하면 여기에 나타나요')}
                   </Text>
                 ) : null}
               </View>
             </SettingsSection>
 
-            <SettingsSection label="동기화">
+            <SettingsSection label={t('sync.sync', '동기화')}>
               <View className="gap-4">
                 <Text className="text-sm font-semibold text-neutral-500 dark:text-neutral-400">
                   {lastSyncText}
                 </Text>
                 <Button
-                  label={busy ? '동기화 중…' : '동기화하기'}
+                  label={
+                    busy
+                      ? t('settings.syncingTitle', '동기화 중…')
+                      : t('settings.syncNow', '동기화하기')
+                  }
                   disabled={busy}
                   onPress={() => void sync()}
                 />
                 <Text className="text-center text-xs font-semibold text-neutral-400">
-                  인터넷 연결이 필요해요. 기록은 연결이 없어도 계속 쌓여요.
+                  {t(
+                    'sync.internetHelp',
+                    '인터넷 연결이 필요해요. 기록은 연결이 없어도 계속 쌓여요.',
+                  )}
                 </Text>
               </View>
             </SettingsSection>
@@ -308,7 +341,7 @@ export default function SyncScreen() {
             {linked ? null : (
               <View className="items-center">
                 <Button
-                  label="초대 코드 재발급"
+                  label={t('sync.reissueCode', '초대 코드 재발급')}
                   size="md"
                   variant="ghost"
                   disabled={busy}
@@ -319,22 +352,26 @@ export default function SyncScreen() {
           </>
         ) : (
           <>
-            <SettingsSection label="함께 기록하기">
+            <SettingsSection label={t('settings.recordTogether', '함께 기록하기')}>
               <View className="gap-3">
                 <Text className="text-sm font-semibold text-neutral-500 dark:text-neutral-400">
-                  초대 코드를 상대방이 받아 입력하면 현재 여행지와 가계부를 공유해요. 그 다음 각자
-                  지출을 기록하고, 동기화하면 서로의 기록을 하나로 합칠 수 있어요.
+                  {t(
+                    'sync.intro',
+                    '초대 코드를 상대방이 받아 입력하면 현재 여행지와 가계부를 공유해요. 그 다음 각자 지출을 기록하고, 동기화하면 서로의 기록을 하나로 합칠 수 있어요.',
+                  )}
                 </Text>
                 <Button
-                  label="초대 코드 만들기"
+                  label={t('sync.createInviteCode', '초대 코드 만들기')}
                   icon={<UserPlus size={18} color={scheme.primaryForeground} />}
                   onPress={() => openSheet('create')}
                 />
               </View>
             </SettingsSection>
             <Text className="px-1 text-xs font-semibold text-neutral-400">
-              계정을 만들 필요는 없어요. 코드를 가진 사람이 그 여행의 참가자예요.{'\n'}
-              반대로 상대에게 코드를 받았다면 설정 → 데이터 → 초대 코드 입력에서 넣으세요.
+              {t(
+                'sync.noAccountHelp',
+                '계정을 만들 필요는 없어요. 코드를 가진 사람이 그 여행의 참가자예요.\n반대로 상대에게 코드를 받았다면 설정 → 데이터 → 초대 코드 입력에서 넣으세요.',
+              )}
             </Text>
           </>
         )}
@@ -346,9 +383,15 @@ export default function SyncScreen() {
       <SheetLayout
         visible={sheet === 'create' || sheet === 'rename'}
         onClose={close}
-        title={sheet === 'rename' ? '내 이름' : '초대 코드 만들기'}
-        subtitle="우선 내 별명을 입력해주세요."
-        primaryLabel={sheet === 'rename' ? '저장' : '코드 만들기'}
+        title={
+          sheet === 'rename'
+            ? t('sync.myName', '내 이름')
+            : t('sync.createInviteCode', '초대 코드 만들기')
+        }
+        subtitle={t('sync.nameSubtitle', '우선 내 별명을 입력해주세요.')}
+        primaryLabel={
+          sheet === 'rename' ? t('common.save', '저장') : t('sync.createCode', '코드 만들기')
+        }
         primaryDisabled={busy}
         onPrimary={() => {
           if (sheet === 'rename') {
@@ -358,7 +401,7 @@ export default function SyncScreen() {
           }
           void create();
         }}
-        secondaryLabel="취소"
+        secondaryLabel={t('common.cancel', '취소')}
       >
         <NameInput value={nameDraft} onChange={setNameDraft} />
       </SheetLayout>
@@ -366,21 +409,29 @@ export default function SyncScreen() {
       {/* 동기화 완료 */}
       <ConfirmDialog
         visible={result != null}
-        title="동기화 완료"
+        title={t('sync.doneTitle', '동기화 완료')}
         message={
           result?.received
-            ? `상대 기록 ${result.received}건을 가져왔어요\n내 기록 ${result.sent}건을 보냈어요`
-            : `내 기록 ${result?.sent ?? 0}건을 보냈어요\n아직 상대의 기록이 없어요. 상대도 동기화하면 서로 반영돼요.`
+            ? t(
+                'sync.doneReceived',
+                '상대 기록 {{received}}건을 가져왔어요\n내 기록 {{sent}}건을 보냈어요',
+                { received: result.received, sent: result.sent },
+              )
+            : t(
+                'sync.doneSentOnly',
+                '내 기록 {{sent}}건을 보냈어요\n아직 상대의 기록이 없어요. 상대도 동기화하면 서로 반영돼요.',
+                { sent: result?.sent ?? 0 },
+              )
         }
         actions={[
           {
-            label: '타임라인 보기',
+            label: t('sync.viewTimeline', '타임라인 보기'),
             onPress: () => {
               setResult(null);
               router.push('/timeline');
             },
           },
-          { label: '닫기', variant: 'ghost' },
+          { label: t('common.close', '닫기'), variant: 'ghost' },
         ]}
         onDismiss={() => setResult(null)}
       />
@@ -390,7 +441,7 @@ export default function SyncScreen() {
           pair={duplicates[dupIndex]}
           index={dupIndex}
           total={duplicates.length}
-          authorName={others[0]?.name ?? '동행자'}
+          authorName={others[0]?.name ?? t('timeline.companion', '동행자')}
           myParticipantId={myParticipantId}
           onMerge={() => void applyMerge()}
           onKeepBoth={nextDuplicate}
@@ -400,11 +451,18 @@ export default function SyncScreen() {
       {/* 재발급 = 옛 코드 폐기. 아직 아무도 안 들어온 상태에서만 열린다. */}
       <ConfirmDialog
         visible={confirmReset}
-        title="새 코드를 만들까요?"
-        message="지금 코드는 더 이상 쓸 수 없게 돼요. 코드를 잘못 보냈거나 시간이 오래 지났을 때 쓰세요."
+        title={t('sync.reissueTitle', '새 코드를 만들까요?')}
+        message={t(
+          'sync.reissueMessage',
+          '지금 코드는 더 이상 쓸 수 없게 돼요. 코드를 잘못 보냈거나 시간이 오래 지났을 때 쓰세요.',
+        )}
         actions={[
-          { label: '새 코드 만들기', onPress: () => void reissue() },
-          { label: '취소', variant: 'ghost', onPress: () => setConfirmReset(false) },
+          { label: t('sync.createNewCode', '새 코드 만들기'), onPress: () => void reissue() },
+          {
+            label: t('common.cancel', '취소'),
+            variant: 'ghost',
+            onPress: () => setConfirmReset(false),
+          },
         ]}
         onDismiss={() => setConfirmReset(false)}
       />
@@ -414,12 +472,13 @@ export default function SyncScreen() {
 
 function NameInput({ value, onChange }: { value: string; onChange: (next: string) => void }) {
   const { scheme } = useTheme();
+  const { t } = useI18n();
   return (
     <TextInput
       value={value}
       onChangeText={onChange}
       maxLength={12}
-      placeholder="내 별명 입력"
+      placeholder={t('sync.namePlaceholder', '내 별명 입력')}
       placeholderTextColor={scheme.mutedForeground}
       // 높이는 고정한다. tailwind 크기(text-base)는 lineHeight까지 붙는데, 한 줄짜리
       // TextInput은 값이 있고 없고에 따라 그 줄 상자를 다시 재서 높이가 들쭉날쭉해진다.

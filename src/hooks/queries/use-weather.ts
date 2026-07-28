@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
+import type { AppLanguage } from '@/i18n';
 import { storage } from '@/lib/storage';
 
 /**
@@ -22,17 +23,25 @@ export type CurrentWeather = {
   feelsLikeC: number;
   humidity: number;
   isDay: boolean;
-  /** 한국어 상태 텍스트 ("흐림") */
+  /** 앱 언어에 맞춘 상태 텍스트 ("흐림", "Partly cloudy", "所により曇り" 등) */
   condition: string;
   iconUrl: string;
   conditionCode: number;
 };
 
 /**
- * 통화 → 조회할 도시. 여행지 좌표를 아직 저장하지 않아 통화가 유일한 단서다.
+ * 나라/통화 → 조회할 도시. 여행지 좌표를 아직 저장하지 않아 나라 코드가 있으면 그걸 먼저 쓴다.
  * ponytail: trips에 좌표(lat/lon)가 생기면 이 맵 대신 `q = "lat,lon"`을 넘긴다 —
  * 서버 입력이 이미 두 형태를 같은 칸으로 받으므로 이 파일만 고치면 된다.
  */
+const CITY_OF_COUNTRY: Record<string, string> = {
+  DE: 'Berlin',
+  FR: 'Paris',
+  IT: 'Rome',
+  ES: 'Madrid',
+  PT: 'Lisbon',
+};
+
 const CITY_OF_CURRENCY: Record<string, string> = {
   KRW: 'Seoul',
   JPY: 'Tokyo',
@@ -83,8 +92,12 @@ type Cached = { data: CurrentWeather; at: number };
  * MMKV 캐시 — react-query 캐시는 앱을 끄면 사라지므로 재접속 때마다 요청이 나간다.
  * 도시별로 한 칸씩 저장하고 타임스탬프로 신선도를 판단한다.
  */
-function readCache(q: string): Cached | null {
-  const raw = storage.getString(`weather:${q}`);
+function cacheKey(q: string, language: AppLanguage) {
+  return `weather:${language}:${q}`;
+}
+
+function readCache(q: string, language: AppLanguage): Cached | null {
+  const raw = storage.getString(cacheKey(q, language));
   if (!raw) return null;
   try {
     return JSON.parse(raw) as Cached;
@@ -100,20 +113,25 @@ function readCache(q: string): Cached | null {
  * initialDataUpdatedAt에 저장 시각을 넘기면 신선도 판정은 react-query가 한다 —
  * 1시간이 안 지났으면 캐시를 그대로 쓰고, 지났으면 알아서 재요청한다.
  */
-export function useCurrentWeather(localCurrency: string) {
-  const q = CITY_OF_CURRENCY[localCurrency];
-  const cached = q ? readCache(q) : null;
+export function useCurrentWeather(
+  localCurrency: string,
+  countryCode: string | null | undefined,
+  language: AppLanguage,
+) {
+  const q =
+    (countryCode ? CITY_OF_COUNTRY[countryCode] : undefined) ?? CITY_OF_CURRENCY[localCurrency];
+  const cached = q ? readCache(q, language) : null;
 
   return useQuery({
-    queryKey: ['weather', 'current', q],
+    queryKey: ['weather', 'current', q, language],
     enabled: Boolean(q) && Boolean(baseUrl),
     staleTime: TTL,
     retry: 1,
     initialData: cached?.data,
     initialDataUpdatedAt: cached?.at,
     queryFn: async () => {
-      const data = await trpcQuery<CurrentWeather>('weather.current', { q });
-      storage.set(`weather:${q}`, JSON.stringify({ data, at: Date.now() } satisfies Cached));
+      const data = await trpcQuery<CurrentWeather>('weather.current', { q, lang: language });
+      storage.set(cacheKey(q, language), JSON.stringify({ data, at: Date.now() } satisfies Cached));
       return data;
     },
   });

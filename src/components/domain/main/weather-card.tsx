@@ -1,14 +1,15 @@
 import { CloudSun, RefreshCw } from 'lucide-react-native';
 import { Image, Pressable, Text, View } from 'react-native';
 
-import { countryNameOfCurrency } from '@/constants/currencies';
 import { useCurrentWeather } from '@/hooks/queries/use-weather';
 import { useTheme } from '@/hooks/use-theme';
+import { destinationLabel, useI18n } from '@/i18n';
 import { haptics } from '@/lib/haptics';
 
 type Props = {
-  /** 현지 통화로 여행지를 유추한다 (아직 좌표를 저장하지 않는다) */
+  /** 현지 나라/통화로 여행지를 유추한다 (아직 좌표를 저장하지 않는다) */
   localCurrency: string;
+  destinationCountryCode?: string | null;
 };
 
 /**
@@ -16,9 +17,15 @@ type Props = {
  * 값이 없을 때(로딩/실패/키 미설정) 카드가 사라지지 않는다 — 레이아웃이 흔들리는 것보다
  * "곧 알려드릴게요"가 낫다.
  */
-export function WeatherCard({ localCurrency }: Props) {
+export function WeatherCard({ localCurrency, destinationCountryCode }: Props) {
   const { scheme } = useTheme();
-  const { data, refetch, isFetching } = useCurrentWeather(localCurrency);
+  const { resolvedLanguage, t } = useI18n();
+  const { data, refetch, isFetching } = useCurrentWeather(
+    localCurrency,
+    destinationCountryCode,
+    resolvedLanguage,
+  );
+  const place = data?.place ?? destinationLabel(destinationCountryCode, localCurrency, t);
 
   return (
     <View
@@ -37,17 +44,17 @@ export function WeatherCard({ localCurrency }: Props) {
       </View>
       <View className="flex-1">
         <Text className="text-sm font-bold text-neutral-500 dark:text-neutral-400">
-          {data?.place ?? countryNameOfCurrency(localCurrency)} 날씨
+          {t('main.weatherTitle', '{{place}} 날씨', { place })}
         </Text>
         <Text className="mt-1 text-lg font-black text-neutral-900 dark:text-neutral-50">
-          {data ? `${data.tempC}° ${data.condition}` : '곧 알려드릴게요'}
+          {data ? `${data.tempC}° ${data.condition}` : t('main.weatherSoon', '곧 알려드릴게요')}
         </Text>
       </View>
       <View className="items-end gap-2">
         {/* 캐시가 1시간을 안 넘겨도 지금 값을 보고 싶을 때가 있다 — 눌러서 강제 갱신 */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="날씨 새로고침"
+          accessibilityLabel={t('main.refreshWeatherA11y', '날씨 새로고침')}
           disabled={isFetching}
           onPress={() => {
             haptics.selection();
@@ -61,7 +68,10 @@ export function WeatherCard({ localCurrency }: Props) {
         </Pressable>
         {data ? (
           <Text className="text-sm font-bold text-neutral-500 dark:text-neutral-400">
-            체감 {data.feelsLikeC}° · 습도 {data.humidity}%
+            {t('main.weatherDetails', '체감 {{feelsLike}}° · 습도 {{humidity}}%', {
+              feelsLike: data.feelsLikeC,
+              humidity: data.humidity,
+            })}
           </Text>
         ) : null}
       </View>

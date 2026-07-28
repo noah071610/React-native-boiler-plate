@@ -46,18 +46,19 @@ import { PageHeader } from '@/components/ui/page-header';
 import { SettingsRow, SettingsSection } from '@/components/ui/settings-section';
 import { Toast } from '@/components/ui/toast';
 import {
-  countryNameOfCurrency,
+  findCountryByCode,
   findCountryByCurrency,
-  flagOfCurrency,
+  flagOfDestination,
+  type CountryInfo,
 } from '@/constants/currencies';
 import { db } from '@/db';
 import { expenses, participants, trips, type Trip } from '@/db/schema';
 import { localDateKey, useActiveTrip } from '@/hooks/use-active-trip';
 import { useTheme } from '@/hooks/use-theme';
+import { formatMoneyI18n, LANGUAGE_OPTIONS, useI18n } from '@/i18n';
 import { exportBackup } from '@/lib/backup';
 import { createTrip } from '@/lib/create-trip';
 import { haptics } from '@/lib/haptics';
-import { formatMoney } from '@/lib/money';
 import { formatRateDate, useRate } from '@/lib/rates';
 import { clearLocalData } from '@/lib/storage';
 import { findDuplicates, runSync, unlinkTrip } from '@/lib/sync';
@@ -82,29 +83,52 @@ type Sheet =
 
 const SUPPORT_EMAIL = 'noah071610@gmail.com';
 
-const THEMES: { value: ThemePreference; label: string; hint: string }[] = [
-  { value: 'system', label: '기기 설정 따르기', hint: '기기가 다크 모드면 같이 어두워져요' },
-  { value: 'light', label: '라이트', hint: '항상 밝게' },
-  { value: 'dark', label: '다크', hint: '항상 어둡게' },
+type T = ReturnType<typeof useI18n>['t'];
+
+const themeOptions = (t: T): { value: ThemePreference; label: string; hint: string }[] => [
+  {
+    value: 'system',
+    label: t('settings.themeSystemLabel', '기기 설정 따르기'),
+    hint: t('settings.themeSystemHint', '기기가 다크 모드면 같이 어두워져요'),
+  },
+  {
+    value: 'light',
+    label: t('settings.themeLightLabel', '라이트'),
+    hint: t('settings.themeLightHint', '항상 밝게'),
+  },
+  {
+    value: 'dark',
+    label: t('settings.themeDarkLabel', '다크'),
+    hint: t('settings.themeDarkHint', '항상 어둡게'),
+  },
 ];
 
-const themeLabel = (value: ThemePreference) =>
-  THEMES.find((t) => t.value === value)?.label ?? value;
+const themeLabel = (value: ThemePreference, t: T) =>
+  themeOptions(t).find((theme) => theme.value === value)?.label ?? value;
 
-const LANGUAGES: { value: LanguagePreference; label: string }[] = [
-  { value: 'system', label: '기기 설정 따르기' },
-  { value: 'ko', label: '한국어' },
-  { value: 'en', label: 'English' },
-  { value: 'ja', label: '日本語' },
-];
+const languageOptions = (t: T) =>
+  LANGUAGE_OPTIONS.map((item) =>
+    item.value === 'system' ? { ...item, label: t('settings.languageSystem', item.label) } : item,
+  );
 
-const languageLabel = (value: LanguagePreference) =>
-  LANGUAGES.find((l) => l.value === value)?.label ?? value;
+const languageLabel = (value: LanguagePreference, t: T) =>
+  languageOptions(t).find((item) => item.value === value)?.label ?? value;
 
-const periodLabel = (trip: Trip) => {
-  if (!trip.startDate && !trip.endDate) return '미설정';
-  const from = trip.startDate ? formatRateDate(trip.startDate) : '?';
-  const to = trip.endDate ? formatRateDate(trip.endDate) : '?';
+const countryLabel = (country: CountryInfo, t: T) => t(`country.${country.code}`, country.nameKo);
+
+const destinationName = (
+  countryCode: string | null | undefined,
+  currency: string,
+  t: T,
+): string => {
+  const country = findCountryByCode(countryCode) ?? findCountryByCurrency(currency);
+  return country ? countryLabel(country, t) : currency;
+};
+
+const periodLabel = (trip: Trip, t: T, locale: string) => {
+  if (!trip.startDate && !trip.endDate) return t('common.notSet', '미설정');
+  const from = trip.startDate ? formatRateDate(trip.startDate, locale) : '?';
+  const to = trip.endDate ? formatRateDate(trip.endDate, locale) : '?';
   return `${from} – ${to}`;
 };
 
@@ -116,6 +140,7 @@ const periodLabel = (trip: Trip) => {
  */
 export default function SettingsScreen() {
   const { scheme } = useTheme();
+  const { locale, resolvedLanguage, t } = useI18n();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -170,10 +195,15 @@ export default function SettingsScreen() {
 
   const quote = useRate(localCurrency, baseCurrency);
 
-  if (loading) return <FullScreenLoader title="여행을 불러오는 중" />;
+  if (loading) return <FullScreenLoader title={t('settings.loading', '여행을 불러오는 중')} />;
   // 로더는 시트 밖(모달 밖)에 있어야 보인다 — 모달 위에 모달을 얹으면 가려진다
   if (joining) {
-    return <FullScreenLoader title="동기화 중" subtitle="상대의 여행을 따라가고 있어요" />;
+    return (
+      <FullScreenLoader
+        title={t('settings.syncing', '동기화 중')}
+        subtitle={t('settings.syncingSubtitle', '상대의 여행을 따라가고 있어요')}
+      />
+    );
   }
 
   const closeSheet = () => {
@@ -183,7 +213,7 @@ export default function SettingsScreen() {
   const close = closeSheet;
   const soon = (what: string) => {
     haptics.selection();
-    setToast(`${what}은 준비 중이에요`);
+    setToast(t('common.readySoon', '{{what}}은 준비 중이에요', { what }));
   };
 
   /** 여행 추가/수정 시트 열기. trip이 null이면 새로 만드는 것이다. */
@@ -205,16 +235,19 @@ export default function SettingsScreen() {
         // 예산은 여기서 안 바꾼다 — 예산 조정 시트(추가/삭감)에서만 바뀐다
         .set({
           destinationCurrency: result.destinationCurrency,
+          destinationCountryCode: result.destinationCountryCode,
           startDate: result.startDate,
           endDate: result.endDate,
           updatedAt: Date.now(),
         })
         .where(eq(trips.id, target.id));
-      setToast('여행을 수정했어요');
+      setToast(t('settings.editSaved', '여행을 수정했어요'));
       return;
     }
 
-    const country = findCountryByCurrency(result.destinationCurrency);
+    const country =
+      findCountryByCode(result.destinationCountryCode) ??
+      findCountryByCurrency(result.destinationCurrency);
     if (!country) return;
     await createTrip({
       country,
@@ -225,27 +258,44 @@ export default function SettingsScreen() {
       budgetCurrency: result.budgetCurrency,
     });
     haptics.notification();
-    setToast(`${country.nameKo} 여행을 만들었어요`);
+    setToast(
+      t('settings.createdTrip', '{{country}} 여행을 만들었어요', {
+        country: countryLabel(country, t),
+      }),
+    );
   };
 
   /** 목적지 통화를 바꿔도 기존 지출의 통화와 스냅샷 환율은 건드리지 않는다 (설정 문서 §여행 설정). */
   const changeCurrency = async (
     field: 'destinationCurrency' | 'baseCurrency',
-    currency: string,
+    country: CountryInfo,
   ) => {
     close();
+    const currency = country.currency;
     // 기준 통화는 유저 본인 통화다 — 여행이 없어도 저장된다
     if (field === 'baseCurrency') setHomeCurrency(currency);
     if (trip) {
       await db
         .update(trips)
-        .set({ [field]: currency, updatedAt: Date.now() })
+        .set(
+          field === 'destinationCurrency'
+            ? {
+                destinationCurrency: currency,
+                destinationCountryCode: country.code,
+                updatedAt: Date.now(),
+              }
+            : { baseCurrency: currency, updatedAt: Date.now() },
+        )
         .where(eq(trips.id, trip.id));
     }
     setToast(
       field === 'baseCurrency'
-        ? `기준 통화를 ${currency}로 바꿨어요`
-        : `목적지를 ${countryNameOfCurrency(currency)}로 바꿨어요`,
+        ? t('settings.baseCurrencyChanged', '기준 통화를 {{currency}}로 바꿨어요', {
+            currency,
+          })
+        : t('settings.destinationChanged', '목적지를 {{country}}로 바꿨어요', {
+            country: countryLabel(country, t),
+          }),
     );
   };
 
@@ -286,7 +336,7 @@ export default function SettingsScreen() {
       .set({ deletedAt: now, updatedAt: now })
       .where(eq(participants.tripId, target.id));
     await db.update(trips).set({ deletedAt: now, updatedAt: now }).where(eq(trips.id, target.id));
-    setToast('여행을 삭제했어요');
+    setToast(t('settings.deletedTrip', '여행을 삭제했어요'));
   };
 
   /**
@@ -311,9 +361,9 @@ export default function SettingsScreen() {
         await Share.share({ url: file.uri, title: file.name });
         return;
       }
-      setToast(`저장했어요 · ${file.name}`);
+      setToast(t('settings.backupSaved', '저장했어요 · {{name}}', { name: file.name }));
     } catch {
-      setToast('백업을 만들지 못했어요');
+      setToast(t('settings.noBackup', '백업을 만들지 못했어요'));
     }
   };
 
@@ -332,10 +382,16 @@ export default function SettingsScreen() {
       haptics.notification();
       setToast(
         pairs.length > 0
-          ? `${counts.received}건을 가져왔어요 · 비슷한 기록 ${pairs.length}건은 함께 기록하기에서 확인해요`
+          ? t(
+              'settings.syncReceivedDuplicates',
+              '{{received}}건을 가져왔어요 · 비슷한 기록 {{duplicates}}건은 함께 기록하기에서 확인해요',
+              { received: counts.received, duplicates: pairs.length },
+            )
           : counts.received > 0
-            ? `상대 기록 ${counts.received}건을 가져왔어요`
-            : '내 기록을 보냈어요. 아직 상대의 새 기록은 없어요.',
+            ? t('settings.syncReceived', '상대 기록 {{received}}건을 가져왔어요', {
+                received: counts.received,
+              })
+            : t('settings.syncEmpty', '내 기록을 보냈어요. 아직 상대의 새 기록은 없어요.'),
       );
     } catch (error) {
       setToast(syncErrorMessage(error));
@@ -349,16 +405,20 @@ export default function SettingsScreen() {
     setConfirmUnlink(false);
     if (!trip || !myParticipantId) return;
     await unlinkTrip(trip, myParticipantId);
-    setToast('연동을 끊었어요. 기록은 그대로 남아 있어요.');
+    setToast(t('settings.unlinked', '연동을 끊었어요. 기록은 그대로 남아 있어요.'));
   };
 
   const contact = () => {
     haptics.selection();
-    void Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Tabica 문의')}`);
+    void Linking.openURL(
+      `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(t('settings.contactSubject', 'Tabica 문의'))}`,
+    );
   };
 
   const budgetText =
-    trip?.budgetAmount != null ? formatMoney(trip.budgetAmount, trip.baseCurrency) : '미설정';
+    trip?.budgetAmount != null
+      ? formatMoneyI18n(trip.budgetAmount, trip.baseCurrency, t, resolvedLanguage)
+      : t('common.notSet', '미설정');
 
   return (
     <View className="flex-1" style={{ backgroundColor: scheme.background }}>
@@ -370,21 +430,37 @@ export default function SettingsScreen() {
           gap: 24,
         }}
       >
-        <PageHeader title="설정" subtitle="여행 관리와 백업" />
+        <PageHeader
+          title={t('settings.title', '설정')}
+          subtitle={t('settings.subtitle', '여행 관리와 백업')}
+        />
 
         {/* 여행 — 활성 여행은 오늘 날짜가 고른다. 여기서는 만들고 고치기만 한다. */}
-        <SettingsSection label={trip ? '지금 여행' : '여행'}>
+        <SettingsSection
+          label={trip ? t('settings.currentTrip', '지금 여행') : t('settings.trip', '여행')}
+        >
           <View className="gap-4">
             {trip ? (
               <View className="flex-row items-center gap-3">
-                <Text className="text-3xl">{flagOfCurrency(trip.destinationCurrency)}</Text>
+                <Text className="text-3xl">
+                  {flagOfDestination(trip.destinationCountryCode, trip.destinationCurrency)}
+                </Text>
                 <View className="flex-1">
                   <Text className="text-lg font-black text-neutral-900 dark:text-neutral-50">
-                    {trip.name ?? countryNameOfCurrency(trip.destinationCurrency)} ·{' '}
-                    {trip.destinationCurrency}
+                    {trip.name ??
+                      destinationName(
+                        trip.destinationCountryCode,
+                        trip.destinationCurrency,
+                        t,
+                      )}{' '}
+                    · {trip.destinationCurrency}
                   </Text>
                   <Text className="mt-0.5 text-xs font-semibold text-neutral-400">
-                    {periodLabel(trip)} · 예산 {budgetText} · 참가자 {participantCount}명
+                    {t('settings.tripMeta', '{{period}} · 예산 {{budget}} · 참가자 {{count}}명', {
+                      period: periodLabel(trip, t, locale),
+                      budget: budgetText,
+                      count: participantCount,
+                    })}
                   </Text>
                 </View>
               </View>
@@ -404,10 +480,13 @@ export default function SettingsScreen() {
                 </View>
                 <View className="flex-1 gap-0.5">
                   <Text className="text-sm font-bold text-neutral-900 dark:text-neutral-50">
-                    아직 등록된 여행이 없어요
+                    {t('settings.noTripTitle', '아직 등록된 여행이 없어요')}
                   </Text>
                   <Text className="text-xs font-medium leading-snug text-neutral-400">
-                    나라와 기간을 지정하면 그 기간에 맞춰 앱이 바뀌어요
+                    {t(
+                      'settings.noTripDescription',
+                      '나라와 기간을 지정하면 그 기간에 맞춰 앱이 바뀌어요',
+                    )}
                   </Text>
                 </View>
               </View>
@@ -415,7 +494,7 @@ export default function SettingsScreen() {
             <View className="flex-row gap-2">
               <View className="flex-1">
                 <Button
-                  label="여행 목록"
+                  label={t('settings.tripList', '여행 목록')}
                   size="md"
                   variant="ghost"
                   onPress={() => setSheet('trips')}
@@ -423,7 +502,7 @@ export default function SettingsScreen() {
               </View>
               <View className="flex-1">
                 <Button
-                  label="새 여행"
+                  label={t('settings.newTrip', '새 여행')}
                   size="md"
                   icon={<Plus size={16} color={scheme.primaryForeground} />}
                   onPress={() => openTripSheet(null)}
@@ -434,26 +513,28 @@ export default function SettingsScreen() {
         </SettingsSection>
 
         {trip ? (
-          <SettingsSection label="여행 설정">
+          <SettingsSection label={t('settings.tripSettings', '여행 설정')}>
             <View className="gap-4">
               <LinkRow
                 icon={<MapPin size={18} color={scheme.primary} />}
-                title="여행지 / 통화"
-                description="바꿔도 이미 기록한 지출의 환율은 그대로예요"
+                title={t('settings.destinationCurrency', '여행지 / 통화')}
+                description={t(
+                  'settings.destinationCurrencyDescription',
+                  '바꿔도 이미 기록한 지출의 환율은 그대로예요',
+                )}
                 value={trip.destinationCurrency}
                 onPress={() => setSheet('local')}
               />
               <LinkRow
                 icon={<CalendarRange size={18} color={scheme.primary} />}
-                title="기간"
-                description="다른 여행과 겹치는 기간으로는 바꿀 수 없어요"
-                value={periodLabel(trip)}
+                title={t('settings.period', '기간')}
+                value={periodLabel(trip, t, locale)}
                 onPress={() => openTripSheet(trip)}
               />
               <LinkRow
                 icon={<Wallet size={18} color={scheme.primary} />}
-                title="예산"
-                description="추가하거나 삭감해서 조정해요"
+                title={t('settings.budget', '예산')}
+                description={t('settings.budgetDescription', '추가하거나 삭감해서 조정해요')}
                 value={budgetText}
                 onPress={() => setSheet('budget')}
               />
@@ -461,37 +542,40 @@ export default function SettingsScreen() {
           </SettingsSection>
         ) : null}
 
-        <SettingsSection label="일반">
+        <SettingsSection label={t('settings.general', '일반')}>
           <View className="gap-4">
             <LinkRow
               icon={<Coins size={18} color={scheme.primary} />}
-              title="기준 통화"
-              description="내 통화예요. 환산 표시만 다시 계산돼요"
+              title={t('settings.homeCurrency', '기준 통화')}
+              description={t(
+                'settings.homeCurrencyDescription',
+                '내 통화예요. 환산 표시만 다시 계산돼요',
+              )}
               value={baseCurrency}
               onPress={() => setSheet('base')}
             />
             <LinkRow
               icon={<Moon size={18} color={scheme.primary} />}
-              title="화면 테마"
-              description="화면 밝기 테마 조정"
-              value={themeLabel(theme)}
+              title={t('settings.theme', '화면 테마')}
+              description={t('settings.themeDescription', '화면 밝기 테마 조정')}
+              value={themeLabel(theme, t)}
               onPress={() => setSheet('theme')}
             />
             <LinkRow
               icon={<Languages size={18} color={scheme.primary} />}
-              title="언어"
-              value={languageLabel(language)}
+              title={t('settings.language', '언어')}
+              value={languageLabel(language, t)}
               onPress={() => setSheet('language')}
             />
             <LinkRow
               icon={<Tags size={18} color={scheme.primary} />}
-              title="카테고리 관리"
+              title={t('settings.categories', '카테고리 관리')}
               onPress={() => setSheet('categories')}
             />
           </View>
         </SettingsSection>
 
-        <SettingsSection label="연결">
+        <SettingsSection label={t('settings.connection', '연결')}>
           <View className="gap-4">
             {/*
               가장 자주 누를 줄이라 맨 위에 두고 초록으로 띄운다.
@@ -500,11 +584,17 @@ export default function SettingsScreen() {
             {hasShareCode || linked ? (
               <LinkRow
                 icon={<RefreshCw size={18} color={scheme.success} />}
-                title={syncing ? '동기화 중…' : '동기화하기'}
+                title={
+                  syncing
+                    ? t('settings.syncingTitle', '동기화 중…')
+                    : t('settings.syncNow', '동기화하기')
+                }
                 description={
                   lastSyncAt
-                    ? `마지막 동기화 ${formatRateDate(localDateKey(lastSyncAt))}`
-                    : '아직 동기화한 적이 없어요'
+                    ? t('settings.lastSync', '마지막 동기화 {{date}}', {
+                        date: formatRateDate(localDateKey(lastSyncAt), locale),
+                      })
+                    : t('settings.notSyncedYet', '아직 동기화한 적이 없어요')
                 }
                 emphasis
                 onPress={() => void runSyncNow()}
@@ -513,11 +603,17 @@ export default function SettingsScreen() {
 
             <LinkRow
               icon={<Users size={18} color={scheme.primary} />}
-              title="함께 기록하기"
+              title={t('settings.recordTogether', '함께 기록하기')}
               description={
-                linked ? '참가자와 초대 코드를 관리해요' : '초대 코드로 둘이 함께 기록해요'
+                linked
+                  ? t('settings.linkedDescription', '참가자와 초대 코드를 관리해요')
+                  : t('settings.sharedDescription', '초대 코드로 둘이 함께 기록해요')
               }
-              value={trip ? `${participantCount}명` : undefined}
+              value={
+                trip
+                  ? t('settings.participantCount', '{{count}}명', { count: participantCount })
+                  : undefined
+              }
               onPress={() => router.push('/sync')}
             />
 
@@ -525,8 +621,8 @@ export default function SettingsScreen() {
             {linked ? null : (
               <LinkRow
                 icon={<UserPlus size={18} color={scheme.primary} />}
-                title="초대 코드 입력"
-                description="상대에게 받은 코드로 동기화하기"
+                title={t('settings.joinCode', '초대 코드 입력')}
+                description={t('settings.joinCodeDescription', '상대에게 받은 코드로 동기화하기')}
                 onPress={() => {
                   haptics.selection();
                   setSheet('joinCode');
@@ -539,8 +635,11 @@ export default function SettingsScreen() {
               <LinkRow
                 icon={<Link2Off size={18} color={scheme.destructive} />}
                 tone="danger"
-                title="연동 끊기"
-                description="기록은 그대로 남고, 서로의 새 기록만 오가지 않아요"
+                title={t('settings.unlink', '연동 끊기')}
+                description={t(
+                  'settings.unlinkDescription',
+                  '기록은 그대로 남고, 서로의 새 기록만 오가지 않아요',
+                )}
                 onPress={() => {
                   haptics.selection();
                   setConfirmUnlink(true);
@@ -550,29 +649,35 @@ export default function SettingsScreen() {
           </View>
         </SettingsSection>
 
-        <SettingsSection label="데이터">
+        <SettingsSection label={t('settings.data', '데이터')}>
           <View className="gap-4">
             <LinkRow
               icon={<Download size={18} color={scheme.primary} />}
-              title="백업 만들기"
-              description="모든 여행과 지출을 파일 하나로 내보내요"
+              title={t('settings.createBackup', '백업 만들기')}
+              description={t(
+                'settings.createBackupDescription',
+                '모든 여행과 지출을 파일 하나로 내보내요',
+              )}
               onPress={() => void runBackup()}
             />
             <LinkRow
               icon={<Upload size={18} color={scheme.primary} />}
-              title="백업 불러오기"
-              onPress={() => soon('백업 불러오기')}
+              title={t('settings.budgetImport', '백업 불러오기')}
+              onPress={() => soon(t('settings.budgetImport', '백업 불러오기'))}
             />
           </View>
         </SettingsSection>
 
-        <SettingsSection label="위험" tone="danger">
+        <SettingsSection label={t('settings.risk', '위험')} tone="danger">
           <View className="gap-4">
             <LinkRow
               icon={<Trash2 size={18} color={scheme.destructive} />}
               tone="danger"
-              title="초기화"
-              description="모든 여행 · 지출 · 설정이 사라지고 처음 화면으로 돌아가요"
+              title={t('settings.reset', '초기화')}
+              description={t(
+                'settings.resetDescription',
+                '모든 여행 · 지출 · 설정이 사라지고 처음 화면으로 돌아가요',
+              )}
               onPress={() => {
                 haptics.selection();
                 setConfirmReset(true);
@@ -581,26 +686,30 @@ export default function SettingsScreen() {
           </View>
         </SettingsSection>
 
-        <SettingsSection label="정보">
+        <SettingsSection label={t('settings.info', '정보')}>
           <View className="gap-4">
             {/* 읽기 전용이다 — 환율은 앱이 알아서 받아온다 (수동 갱신 버튼을 두지 않는다) */}
             <SettingsRow
               icon={<ArrowRightLeft size={18} color={scheme.primary} />}
-              title="환율 정보"
+              title={t('settings.exchangeInfo', '환율 정보')}
               description={
                 quote
-                  ? `${formatRateDate(quote.date)} 기준 환율을 쓰고 있어요`
-                  : '환율을 아직 받지 못했어요'
+                  ? t('settings.exchangeUsingDate', '{{date}} 기준 환율을 쓰고 있어요', {
+                      date: formatRateDate(quote.date, locale),
+                    })
+                  : t('settings.exchangeFallback', '환율을 아직 받지 못했어요')
               }
               right={
                 <Text className="text-sm font-bold text-neutral-400">
-                  {quote?.fromServer ? '자동 갱신' : '기본값'}
+                  {quote?.fromServer
+                    ? t('settings.exchangeAuto', '자동 갱신')
+                    : t('settings.defaultRate', '기본값')}
                 </Text>
               }
             />
             <SettingsRow
               icon={<Globe2 size={18} color={scheme.primary} />}
-              title="버전"
+              title={t('settings.version', '버전')}
               right={
                 <Text className="text-sm font-bold text-neutral-400">
                   {Constants.expoConfig?.version ?? '-'}
@@ -609,7 +718,7 @@ export default function SettingsScreen() {
             />
             <LinkRow
               icon={<Mail size={18} color={scheme.primary} />}
-              title="문의"
+              title={t('settings.contact', '문의')}
               value={SUPPORT_EMAIL}
               onPress={contact}
             />
@@ -633,10 +742,13 @@ export default function SettingsScreen() {
           */}
           <View className="flex-1" style={{ display: listEditing ? 'none' : 'flex' }}>
             <Text className="text-xl font-black text-neutral-900 dark:text-neutral-50">
-              여행 목록
+              {t('settings.tripList', '여행 목록')}
             </Text>
             <Text className="mb-4 mt-1 text-sm font-semibold text-neutral-400">
-              왼쪽으로 밀면 수정하거나 지울 수 있어요. 기간이 오면 그 여행으로 자동으로 바뀌어요.
+              {t(
+                'settings.tripListDescription',
+                '왼쪽으로 밀면 수정하거나 지울 수 있어요. 기간이 오면 그 여행으로 자동으로 바뀌어요.',
+              )}
             </Text>
             {/* 스와이프 액션이 붙는 줄이라 모서리를 굴리지 않는다 — 액션과 줄이 딱 붙어야 한다 */}
             <ScrollView contentContainerStyle={{ paddingBottom: 16 }} className="-mx-5">
@@ -675,21 +787,33 @@ export default function SettingsScreen() {
             visible={confirmDelete != null}
             title={
               confirmDelete
-                ? `${countryNameOfCurrency(confirmDelete.destinationCurrency)} 여행을 삭제할까요?`
-                : '여행을 삭제할까요?'
+                ? t('settings.deleteTripTitleWithCountry', '{{country}} 여행을 삭제할까요?', {
+                    country: destinationName(
+                      confirmDelete.destinationCountryCode,
+                      confirmDelete.destinationCurrency,
+                      t,
+                    ),
+                  })
+                : t('settings.deleteTripTitle', '여행을 삭제할까요?')
             }
             message={
               confirmDelete?.id === trip?.id && participantCount > 1
-                ? '이 기기의 기록만 지워져요. 함께 여행한 사람의 기록에는 영향이 없어요.'
-                : '이 여행의 지출이 모두 사라져요. 되돌릴 수 없어요.'
+                ? t(
+                    'settings.deleteCurrentSharedTripMessage',
+                    '이 기기의 기록만 지워져요. 함께 여행한 사람의 기록에는 영향이 없어요.',
+                  )
+                : t(
+                    'settings.deleteTripMessage',
+                    '이 여행의 지출이 모두 사라져요. 되돌릴 수 없어요.',
+                  )
             }
             actions={[
               {
-                label: '삭제',
+                label: t('common.delete', '삭제'),
                 variant: 'destructive',
                 onPress: () => confirmDelete && void deleteTrip(confirmDelete),
               },
-              { label: '그대로 둘게요', variant: 'ghost' },
+              { label: t('common.keepIt', '그대로 둘게요'), variant: 'ghost' },
             ]}
             onDismiss={() => setConfirmDelete(null)}
           />
@@ -717,14 +841,19 @@ export default function SettingsScreen() {
           className="flex-1 rounded-t-3xl px-5 pt-6"
         >
           <Text className="mb-4 text-xl font-black text-neutral-900 dark:text-neutral-50">
-            {sheet === 'base' ? '기준 통화' : '여행지 / 통화'}
+            {sheet === 'base'
+              ? t('settings.homeCurrency', '기준 통화')
+              : t('settings.destinationCurrency', '여행지 / 통화')}
           </Text>
           <CountryList
             selectedCurrency={sheet === 'base' ? baseCurrency : localCurrency}
+            selectedCountryCode={
+              sheet === 'local' ? (trip?.destinationCountryCode ?? undefined) : undefined
+            }
             onSelect={(country) =>
               void changeCurrency(
                 sheet === 'base' ? 'baseCurrency' : 'destinationCurrency',
-                country.currency,
+                country,
               )
             }
           />
@@ -738,10 +867,12 @@ export default function SettingsScreen() {
           className="gap-2 rounded-t-3xl px-5 pt-6"
         >
           <Text className="text-xl font-black text-neutral-900 dark:text-neutral-50">
-            화면 테마
+            {t('settings.theme', '화면 테마')}
           </Text>
-          <Text className="mb-2 text-sm font-semibold text-neutral-400">바꾸면 바로 적용돼요</Text>
-          {THEMES.map((item) => (
+          <Text className="mb-2 text-sm font-semibold text-neutral-400">
+            {t('settings.themeSheetDescription', '바꾸면 바로 적용돼요')}
+          </Text>
+          {themeOptions(t).map((item) => (
             <Option
               key={item.value}
               label={item.label}
@@ -763,16 +894,22 @@ export default function SettingsScreen() {
           style={{ backgroundColor: scheme.card, paddingBottom: insets.bottom + 16 }}
           className="gap-2 rounded-t-3xl px-5 pt-6"
         >
-          <Text className="text-xl font-black text-neutral-900 dark:text-neutral-50">언어</Text>
-          <Text className="mb-2 text-sm font-semibold text-neutral-400">
-            화면 번역은 아직 준비 중이에요. 선택은 저장돼요.
+          <Text className="text-xl font-black text-neutral-900 dark:text-neutral-50">
+            {t('settings.language', '언어')}
           </Text>
-          {LANGUAGES.map((item) => (
+          <Text className="mb-2 text-sm font-semibold text-neutral-400">
+            {t(
+              'settings.languageDescription',
+              '바꾸면 날짜와 번역 준비가 된 화면부터 바로 적용돼요',
+            )}
+          </Text>
+          {languageOptions(t).map((item) => (
             <Option
               key={item.value}
               label={item.label}
               selected={language === item.value}
               onPress={() => {
+                haptics.selection();
                 setLanguage(item.value);
                 close();
               }}
@@ -803,7 +940,7 @@ export default function SettingsScreen() {
         onJoinStart={() => setJoining(true)}
         onJoined={() => {
           setJoining(false);
-          setToast('상대방과 동기화했습니다.');
+          setToast(t('settings.joined', '상대방과 동기화했습니다.'));
         }}
         onError={(message) => {
           setJoining(false);
@@ -814,22 +951,40 @@ export default function SettingsScreen() {
       {/* 연동 끊기 — 지우는 것이 아니라는 점을 문구가 먼저 말한다 */}
       <ConfirmDialog
         visible={confirmUnlink}
-        title="연동을 끊을까요?"
-        message="지금까지 쌓인 기록은 전부 그대로 남아요. 앞으로 서로의 새 기록만 오가지 않아요. 다시 함께 기록하려면 초대 코드를 새로 주고받으면 돼요."
+        title={t('settings.unlinkConfirmTitle', '연동을 끊을까요?')}
+        message={t(
+          'settings.unlinkConfirmMessage',
+          '지금까지 쌓인 기록은 전부 그대로 남아요. 앞으로 서로의 새 기록만 오가지 않아요. 다시 함께 기록하려면 초대 코드를 새로 주고받으면 돼요.',
+        )}
         actions={[
-          { label: '연동 끊기', variant: 'destructive', onPress: () => void unlink() },
-          { label: '그대로 둘게요', variant: 'ghost', onPress: () => setConfirmUnlink(false) },
+          {
+            label: t('settings.unlink', '연동 끊기'),
+            variant: 'destructive',
+            onPress: () => void unlink(),
+          },
+          {
+            label: t('common.keepIt', '그대로 둘게요'),
+            variant: 'ghost',
+            onPress: () => setConfirmUnlink(false),
+          },
         ]}
         onDismiss={() => setConfirmUnlink(false)}
       />
 
       <ConfirmDialog
         visible={confirmReset}
-        title="앱을 초기화할까요?"
-        message="모든 여행 · 지출 · 참가자 · 설정이 이 기기에서 완전히 사라져요. 되돌릴 수 없으니 먼저 백업을 만들어 두세요."
+        title={t('settings.resetConfirmTitle', '앱을 초기화할까요?')}
+        message={t(
+          'settings.resetConfirmMessage',
+          '모든 여행 · 지출 · 참가자 · 설정이 이 기기에서 완전히 사라져요. 되돌릴 수 없으니 먼저 백업을 만들어 두세요.',
+        )}
         actions={[
-          { label: '초기화', variant: 'destructive', onPress: () => void resetApp() },
-          { label: '그대로 둘게요', variant: 'ghost' },
+          {
+            label: t('settings.reset', '초기화'),
+            variant: 'destructive',
+            onPress: () => void resetApp(),
+          },
+          { label: t('common.keepIt', '그대로 둘게요'), variant: 'ghost' },
         ]}
         onDismiss={() => setConfirmReset(false)}
       />
@@ -843,6 +998,9 @@ export default function SettingsScreen() {
  */
 function TripRow({ trip, active, onPress }: { trip: Trip; active: boolean; onPress: () => void }) {
   const { scheme, effectiveScheme } = useTheme();
+  const { locale, t } = useI18n();
+  const name =
+    trip.name ?? destinationName(trip.destinationCountryCode, trip.destinationCurrency, t);
   // 반투명이면 밀었을 때 아래 액션 버튼이 비친다 — 불투명 초록으로 깐다
   const activeBackground = effectiveScheme === 'dark' ? '#14352B' : '#E3F7EE';
 
@@ -850,7 +1008,7 @@ function TripRow({ trip, active, onPress }: { trip: Trip; active: boolean; onPre
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
-      accessibilityLabel={`${trip.name ?? countryNameOfCurrency(trip.destinationCurrency)} 수정`}
+      accessibilityLabel={t('settings.accessibility.editTrip', '{{name}} 수정', { name })}
       onPress={() => {
         haptics.selection();
         onPress();
@@ -862,18 +1020,18 @@ function TripRow({ trip, active, onPress }: { trip: Trip; active: boolean; onPre
       }}
       className="flex-row items-center gap-3 border-b px-5 py-4 active:opacity-70"
     >
-      <Text className="text-2xl">{flagOfCurrency(trip.destinationCurrency)}</Text>
+      <Text className="text-2xl">
+        {flagOfDestination(trip.destinationCountryCode, trip.destinationCurrency)}
+      </Text>
       <View className="flex-1">
-        <Text className="text-base font-bold text-neutral-900 dark:text-neutral-50">
-          {trip.name ?? countryNameOfCurrency(trip.destinationCurrency)}
-        </Text>
+        <Text className="text-base font-bold text-neutral-900 dark:text-neutral-50">{name}</Text>
         <Text className="mt-0.5 text-xs font-semibold text-neutral-400">
-          {trip.destinationCurrency} · {periodLabel(trip)}
+          {trip.destinationCurrency} · {periodLabel(trip, t, locale)}
         </Text>
       </View>
       {active ? (
         <Text style={{ color: scheme.success }} className="text-xs font-black">
-          진행 중
+          {t('settings.current', '진행 중')}
         </Text>
       ) : null}
     </Pressable>
@@ -894,6 +1052,7 @@ function SwipeRow({
   onDelete: () => void;
 }) {
   const { scheme } = useTheme();
+  const { t } = useI18n();
 
   return (
     <View className="overflow-hidden">
@@ -909,14 +1068,14 @@ function SwipeRow({
               메뉴는 화면이 바뀌거나 다른 줄을 밀 때 알아서 닫힌다.
             */}
             <SwipeAction
-              label="수정"
+              label={t('common.edit', '수정')}
               color={scheme.primary}
               foreground={scheme.primaryForeground}
               Icon={Pencil}
               onPress={onEdit}
             />
             <SwipeAction
-              label="삭제"
+              label={t('common.delete', '삭제')}
               color={scheme.destructive}
               foreground={scheme.destructiveForeground}
               Icon={Trash2}

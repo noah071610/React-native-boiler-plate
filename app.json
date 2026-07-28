@@ -51,11 +51,48 @@
                     "weight": 400
                   },
                   {
+                    "path": "./assets/fonts/Pretendard-Medium.otf",
+                    "weight": 500
+                  },
+                  {
+                    "path": "./assets/fonts/Pretendard-SemiBold.otf",
+                    "weight": 600
+                  },
+                  {
                     "path": "./assets/fonts/Pretendard-Bold.otf",
                     "weight": 700
                   },
                   {
-                    "path": "./assets/fonts/Pretendard-Bold.otf",
+                    "path": "./assets/fonts/Pretendard-ExtraBold.otf",
+                    "weight": 800
+                  },
+                  {
+                    "path": "./assets/fonts/Pretendard-Black.otf",
+                    "weight": 900
+                  }
+                ]
+              },
+              {
+                "fontFamily": "Rounded Mplus 1c",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/MPLUSRounded1c-Regular.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/MPLUSRounded1c-Medium.ttf",
+                    "weight": 500
+                  },
+                  {
+                    "path": "./assets/fonts/MPLUSRounded1c-Bold.ttf",
+                    "weight": 700
+                  },
+                  {
+                    "path": "./assets/fonts/MPLUSRounded1c-ExtraBold.ttf",
+                    "weight": 800
+                  },
+                  {
+                    "path": "./assets/fonts/MPLUSRounded1c-Black.ttf",
                     "weight": 900
                   }
                 ]
@@ -63,7 +100,19 @@
             ]
           },
           "ios": {
-            "fonts": ["./assets/fonts/Pretendard-Regular.otf", "./assets/fonts/Pretendard-Bold.otf"]
+            "fonts": [
+              "./assets/fonts/Pretendard-Regular.otf",
+              "./assets/fonts/Pretendard-Medium.otf",
+              "./assets/fonts/Pretendard-SemiBold.otf",
+              "./assets/fonts/Pretendard-Bold.otf",
+              "./assets/fonts/Pretendard-ExtraBold.otf",
+              "./assets/fonts/Pretendard-Black.otf",
+              "./assets/fonts/MPLUSRounded1c-Regular.ttf",
+              "./assets/fonts/MPLUSRounded1c-Medium.ttf",
+              "./assets/fonts/MPLUSRounded1c-Bold.ttf",
+              "./assets/fonts/MPLUSRounded1c-ExtraBold.ttf",
+              "./assets/fonts/MPLUSRounded1c-Black.ttf"
+            ]
           }
         }
       ]

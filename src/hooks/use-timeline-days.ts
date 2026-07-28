@@ -20,6 +20,35 @@ export type TimelineDay = {
   byHour: Map<number, Expense[]>;
 };
 
+/** 그날 하루의 총합. 필터와 무관하다. */
+export type DayTotal = {
+  count: number;
+  localMinor: number;
+  baseMinor: number;
+};
+
+export const EMPTY_DAY_TOTAL: DayTotal = { count: 0, localMinor: 0, baseMinor: 0 };
+
+/**
+ * 날짜별 총합 — 카테고리 필터와 검색어를 타지 않는다.
+ * "오늘 얼마 썼나"는 화면에 무엇을 걸어놨든 같은 숫자여야 하는 지표라
+ * `TimelineDay.localMinor`(필터된 합계)와 따로 계산한다.
+ */
+export function useDayTotals(expenses: Expense[]): Map<string, DayTotal> {
+  return useMemo(() => {
+    const totals = new Map<string, DayTotal>();
+    for (const e of expenses) {
+      const key = localDateKey(e.occurredAt);
+      const acc = totals.get(key) ?? { count: 0, localMinor: 0, baseMinor: 0 };
+      acc.count += 1;
+      acc.localMinor += e.amount;
+      acc.baseMinor += e.baseAmount;
+      totals.set(key, acc);
+    }
+    return totals;
+  }, [expenses]);
+}
+
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 
 function labelOf(key: string): string {
@@ -52,6 +81,7 @@ function matches(e: Expense, text: string, digits: string, label: string): boole
 type Params = {
   expenses: Expense[];
   categories: Category[];
+  categoryLabelOf?: (category: Category) => string;
   /** 여행 시작일 'YYYY-MM-DD'. N일차 표기에만 쓴다. */
   startDate: string | null;
   /** 선택된 카테고리 id. 비어 있으면 전체 */
@@ -69,15 +99,16 @@ type Params = {
 export function useTimelineDays({
   expenses,
   categories,
+  categoryLabelOf = categoryLabel,
   startDate,
   selectedCategoryIds,
   query,
 }: Params): TimelineDay[] {
   const labelById = useMemo(() => {
     const m = new Map<string, string>();
-    for (const c of categories) m.set(c.id, categoryLabel(c));
+    for (const c of categories) m.set(c.id, categoryLabelOf(c));
     return m;
-  }, [categories]);
+  }, [categories, categoryLabelOf]);
 
   return useMemo(() => {
     const text = query.trim().toLowerCase();

@@ -70,6 +70,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "ipad": "expo run:ios --device \"iPad Air 11-inch (M4)\"",
+    "ios:17": "expo run:ios --device \"iPhone 17 Pro\"",
     "web": "expo start --web",
     "lint": "expo lint",
     "db:gen": "drizzle-kit generate"

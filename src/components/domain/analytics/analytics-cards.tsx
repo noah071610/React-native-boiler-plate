@@ -4,7 +4,7 @@ import { Pressable, Text, View } from 'react-native';
 import { Section } from '@/components/domain/analytics/section';
 import type { Analytics, BaselineRow, Settlement, Usage } from '@/hooks/use-analytics';
 import { useTheme } from '@/hooks/use-theme';
-import { formatMoney } from '@/lib/money';
+import { formatMoneyI18n, useI18n } from '@/i18n';
 
 /** ① 기간 요약 — 초과해도 문구로 지적하지 않는다. 사실과 숫자만 (Master 원칙 3). */
 export function SummaryCard({
@@ -15,6 +15,7 @@ export function SummaryCard({
   budgetAmount: number | null;
 }) {
   const { scheme } = useTheme();
+  const { resolvedLanguage, t } = useI18n();
   const {
     rangeLabel,
     days,
@@ -28,22 +29,23 @@ export function SummaryCard({
     overBaseMinor,
     dailyAvgBaseMinor,
   } = analytics;
+  const money = (minor: number, code: string) => formatMoneyI18n(minor, code, t, resolvedLanguage);
 
   return (
     <Section>
       <Text className="text-xs font-bold" style={{ color: scheme.mutedForeground }}>
-        {rangeLabel} · {days}일
+        {t('analytics.rangeDays', '{{range}} · {{days}}일', { range: rangeLabel, days })}
       </Text>
 
       <Text className="mt-3 text-xs font-bold" style={{ color: scheme.mutedForeground }}>
-        총 지출
+        {t('analytics.totalSpent', '총 지출')}
       </Text>
       <Text className="text-3xl font-black text-neutral-900 dark:text-neutral-50">
-        {formatMoney(totalMinor, currency)}
+        {money(totalMinor, currency)}
       </Text>
       {dualCurrency ? (
         <Text className="text-base font-bold" style={{ color: scheme.mutedForeground }}>
-          {formatMoney(totalBaseMinor, baseCurrency)}
+          {money(totalBaseMinor, baseCurrency)}
         </Text>
       ) : null}
 
@@ -63,16 +65,23 @@ export function SummaryCard({
               />
             </View>
             <Text className="text-xs font-bold" style={{ color: scheme.mutedForeground }}>
-              예산 {formatMoney(budgetAmount, baseCurrency)} 대비 {budgetPercent}%
+              {t('analytics.budgetAgainst', '예산 {{amount}} 대비 {{percent}}%', {
+                amount: money(budgetAmount, baseCurrency),
+                percent: budgetPercent,
+              })}
               {overBaseMinor != null
-                ? ` · 초과 ${formatMoney(overBaseMinor, baseCurrency)}`
+                ? t('analytics.overBudgetInline', ' · 초과 {{amount}}', {
+                    amount: money(overBaseMinor, baseCurrency),
+                  })
                 : ''}
             </Text>
           </>
         ) : null}
         <Text className="text-xs font-bold" style={{ color: scheme.mutedForeground }}>
-          하루 평균 {formatMoney(dailyAvgBaseMinor, baseCurrency)}
-          {preTrip ? ' (여행 기간만)' : ''}
+          {t('analytics.dailyAverage', '하루 평균 {{amount}}', {
+            amount: money(dailyAvgBaseMinor, baseCurrency),
+          })}
+          {preTrip ? t('analytics.tripPeriodOnly', ' (여행 기간만)') : ''}
         </Text>
       </View>
 
@@ -85,14 +94,16 @@ export function SummaryCard({
         >
           <View className="gap-0.5">
             <Text className="text-xs font-bold" style={{ color: scheme.mutedForeground }}>
-              ✈️ 출발 전 지출 · {preTrip.count}건
+              {t('analytics.preTripSpending', '✈️ 출발 전 지출 · {{count}}건', {
+                count: preTrip.count,
+              })}
             </Text>
             <Text className="text-[11px] font-semibold" style={{ color: scheme.mutedForeground }}>
-              총 지출에 포함 · 하루 평균에서는 제외
+              {t('analytics.preTripDescription', '총 지출에 포함 · 하루 평균에서는 제외')}
             </Text>
           </View>
           <Text className="text-base font-black text-neutral-900 dark:text-neutral-50">
-            {formatMoney(preTrip.minor, currency)}
+            {money(preTrip.minor, currency)}
           </Text>
         </View>
       ) : null}
@@ -103,12 +114,14 @@ export function SummaryCard({
 /** ④ 개인 소비 기준선 — 남의 데이터를 쓰지 않는다. 표본이 부족하면 줄을 만들지 않는다. */
 export function BaselineCard({ rows, currency }: { rows: BaselineRow[]; currency: string }) {
   const { scheme } = useTheme();
+  const { resolvedLanguage, t } = useI18n();
+  const money = (minor: number) => formatMoneyI18n(minor, currency, t, resolvedLanguage);
 
   return (
-    <Section title="내 소비 기준선">
+    <Section title={t('analytics.baselineTitle', '내 소비 기준선')}>
       {rows.length === 0 ? (
         <Text className="text-sm font-semibold" style={{ color: scheme.mutedForeground }}>
-          기록이 쌓이면 평소 소비 기준을 알려드려요
+          {t('analytics.baselineEmpty', '기록이 쌓이면 평소 소비 기준을 알려드려요')}
         </Text>
       ) : (
         <View className="gap-3">
@@ -127,11 +140,16 @@ export function BaselineCard({ rows, currency }: { rows: BaselineRow[]; currency
                 <Text className="w-14 text-sm font-bold text-neutral-900 dark:text-neutral-50">
                   {row.label}
                 </Text>
-                <Text className="flex-1 text-xs font-semibold" style={{ color: scheme.mutedForeground }}>
-                  보통 {formatMoney(row.medianMinor, currency)}
+                <Text
+                  className="flex-1 text-xs font-semibold"
+                  style={{ color: scheme.mutedForeground }}
+                >
+                  {t('analytics.usuallyAmount', '보통 {{amount}}', {
+                    amount: money(row.medianMinor),
+                  })}
                 </Text>
                 <Text className="text-sm font-black text-neutral-900 dark:text-neutral-50">
-                  {formatMoney(row.latestMinor, currency)}
+                  {money(row.latestMinor)}
                 </Text>
                 <Icon size={14} color={color} />
               </View>
@@ -160,47 +178,61 @@ export function SettlementCard({
   onOpenSync: () => void;
 }) {
   const { scheme } = useTheme();
+  const { locale, resolvedLanguage, t } = useI18n();
   const { direction, diffMinor, diffBaseMinor, me, other } = settlement;
+  const money = (minor: number, code: string) => formatMoneyI18n(minor, code, t, resolvedLanguage);
 
   return (
-    <Section title="정산">
-      <Row label="공동 경비" value={formatMoney(settlement.sharedMinor, currency)} strong />
+    <Section title={t('expense.settlement', '정산')}>
+      <Row
+        label={t('analytics.sharedExpense', '공동 경비')}
+        value={money(settlement.sharedMinor, currency)}
+        strong
+      />
       {settlement.personalMinor > 0 ? (
         <Text className="mt-0.5 text-xs font-semibold" style={{ color: scheme.mutedForeground }}>
-          (개인 경비 {formatMoney(settlement.personalMinor, currency)} 제외)
+          {t('analytics.personalExcludedInline', '(개인 경비 {{amount}} 제외)', {
+            amount: money(settlement.personalMinor, currency),
+          })}
         </Text>
       ) : null}
 
       <View className="mt-3 gap-1">
-        <Row label="1인당" value={formatMoney(settlement.perPersonMinor, currency)} />
-        <Row label={`내가 낸 돈`} value={formatMoney(me.minor, currency)} />
-        <Row label={`${other.name}가 낸 돈`} value={formatMoney(other.minor, currency)} />
+        <Row
+          label={t('analytics.perPerson', '1인당')}
+          value={money(settlement.perPersonMinor, currency)}
+        />
+        <Row label={t('analytics.paidByMe', '내가 낸 돈')} value={money(me.minor, currency)} />
+        <Row
+          label={t('analytics.paidByName', '{{name}}가 낸 돈', { name: other.name })}
+          value={money(other.minor, currency)}
+        />
       </View>
 
-      <View
-        style={{ borderColor: scheme.border }}
-        className="mt-4 border-t pt-3"
-      >
+      <View style={{ borderColor: scheme.border }} className="mt-4 border-t pt-3">
         {direction === 'even' ? (
           <Text className="text-base font-black text-neutral-900 dark:text-neutral-50">
-            정산할 것이 없어요
+            {t('analytics.noSettlement', '정산할 것이 없어요')}
           </Text>
         ) : (
           <>
             <View className="flex-row items-center gap-2">
               <Text className="text-base font-black text-neutral-900 dark:text-neutral-50">
-                {direction === 'other-to-me' ? other.name : '나'}
+                {direction === 'other-to-me' ? other.name : t('expense.me', '나')}
               </Text>
               <ArrowRight size={16} color={scheme.mutedForeground} />
               <Text className="text-base font-black text-neutral-900 dark:text-neutral-50">
-                {direction === 'other-to-me' ? '나' : other.name}
+                {direction === 'other-to-me' ? t('expense.me', '나') : other.name}
               </Text>
             </View>
             <Text className="mt-1 text-2xl font-black" style={{ color: scheme.primary }}>
-              {formatMoney(diffMinor, currency)}
+              {money(diffMinor, currency)}
               {dualCurrency ? (
                 <Text className="text-sm font-bold" style={{ color: scheme.mutedForeground }}>
-                  {'  '}약 {formatMoney(diffBaseMinor, baseCurrency)}
+                  {'  '}
+                  {t('analytics.approxAmount', '약 {{amount}}', {
+                    amount: money(diffBaseMinor, baseCurrency),
+                  })}
                 </Text>
               ) : null}
             </Text>
@@ -208,18 +240,19 @@ export function SettlementCard({
         )}
       </View>
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={onOpenSync}
-        className="mt-3 active:opacity-60"
-      >
+      <Pressable accessibilityRole="button" onPress={onOpenSync} className="mt-3 active:opacity-60">
         <Text className="text-xs font-semibold" style={{ color: scheme.mutedForeground }}>
           {lastSyncAt
-            ? `마지막 동기화 ${new Date(lastSyncAt).toLocaleString('ko-KR')} 기준`
-            : '아직 상대의 기록을 받지 못했어요. 동기화하면 정산이 정확해져요.'}
+            ? t('analytics.lastSyncBasis', '마지막 동기화 {{date}} 기준', {
+                date: new Date(lastSyncAt).toLocaleString(locale),
+              })
+            : t(
+                'analytics.syncNeededForSettlement',
+                '아직 상대의 기록을 받지 못했어요. 동기화하면 정산이 정확해져요.',
+              )}
         </Text>
         <Text className="mt-0.5 text-xs font-bold" style={{ color: scheme.primary }}>
-          동기화하러 가기
+          {t('analytics.goSync', '동기화하러 가기')}
         </Text>
       </Pressable>
     </Section>
@@ -233,18 +266,20 @@ export function SettlementCard({
  */
 export function UsageCard({ usage, currency }: { usage: Usage; currency: string }) {
   const { scheme } = useTheme();
+  const { resolvedLanguage, t } = useI18n();
+  const money = (minor: number) => formatMoneyI18n(minor, currency, t, resolvedLanguage);
 
   return (
-    <Section title="누가 얼마나 썼나">
+    <Section title={t('analytics.usageTitle', '누가 얼마나 썼나')}>
       <View className="gap-4">
         {usage.rows.map((row) => (
           <View key={row.id} className="gap-1.5">
             <View className="flex-row items-baseline justify-between">
               <Text className="text-sm font-bold text-neutral-900 dark:text-neutral-50">
-                {row.isMe ? '나' : row.name}
+                {row.isMe ? t('expense.me', '나') : row.name}
               </Text>
               <Text className="text-base font-black text-neutral-900 dark:text-neutral-50">
-                {formatMoney(row.totalMinor, currency)}
+                {money(row.totalMinor)}
               </Text>
             </View>
 
@@ -270,15 +305,19 @@ export function UsageCard({ usage, currency }: { usage: Usage; currency: string 
             </View>
 
             <Text className="text-xs font-semibold" style={{ color: scheme.mutedForeground }}>
-              본인 {formatMoney(row.ownMinor, currency)} · 공용 몫{' '}
-              {formatMoney(row.sharedShareMinor, currency)}
+              {t('analytics.usageBreakdown', '본인 {{own}} · 공용 몫 {{shared}}', {
+                own: money(row.ownMinor),
+                shared: money(row.sharedShareMinor),
+              })}
             </Text>
           </View>
         ))}
       </View>
 
       <Text className="mt-3 text-xs font-semibold" style={{ color: scheme.mutedForeground }}>
-        공용 {formatMoney(usage.sharedPoolMinor, currency)}을 반씩 나눠 더한 값이에요
+        {t('analytics.sharedPoolDescription', '공용 {{amount}}을 반씩 나눠 더한 값이에요', {
+          amount: money(usage.sharedPoolMinor),
+        })}
       </Text>
     </Section>
   );

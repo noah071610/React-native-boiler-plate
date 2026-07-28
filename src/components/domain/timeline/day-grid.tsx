@@ -3,19 +3,23 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Expense } from '@/db/schema';
 import { useTheme } from '@/hooks/use-theme';
-import type { TimelineDay } from '@/hooks/use-timeline-days';
-import { formatMoney } from '@/lib/money';
+import type { DayTotal, TimelineDay } from '@/hooks/use-timeline-days';
+import { formatMoneyI18n, useI18n, type AppLanguage, type TFunction } from '@/i18n';
 
 /** 한 시간 칸의 최소 높이. 그 시간대에 여러 건이 있으면 칸이 늘어난다. */
 export const HOUR_HEIGHT = 64;
 const GUTTER = 52;
 
-const PAYMENT_LABEL: Record<string, string> = {
-  cash: '현금',
-  card: '카드',
-  qr: 'QR',
-  other: '기타',
-};
+const paymentLabel = (method: string, t: TFunction) =>
+  t(
+    `main.payment.${method}`,
+    method === 'cash' ? '현금' : method === 'card' ? '카드' : method === 'other' ? '기타' : 'QR',
+  );
+
+const dateLabel = (key: string, locale: string) =>
+  new Intl.DateTimeFormat(locale, { month: 'numeric', day: 'numeric', weekday: 'short' }).format(
+    new Date(`${key}T00:00:00`),
+  );
 
 export type ExpenseMeta = {
   icon: string;
@@ -29,6 +33,10 @@ export type ExpenseMeta = {
 
 type Props = {
   day: TimelineDay;
+  /** 그날 총합. 필터를 걸어도 줄지 않는다 (day.count는 필터된 값이라 여기 쓰지 않는다) */
+  total: DayTotal;
+  localCurrency: string;
+  baseCurrency: string;
   metaOf: (expense: Expense) => ExpenseMeta;
   onPress: (expense: Expense) => void;
   onLongPress: (expense: Expense) => void;
@@ -60,9 +68,19 @@ const hhmm = (ms: number) => {
  * 같은 시간대에 두 건이 있으면 나란히 놓지 않고 칸을 아래로 늘린다.
  * 지출은 소요 시간이 없는 점 사건이라 폭을 쪼갤 이유가 없다.
  */
-export function DayGrid({ day, metaOf, onPress, onLongPress }: Props) {
+export function DayGrid({
+  day,
+  total,
+  localCurrency,
+  baseCurrency,
+  metaOf,
+  onPress,
+  onLongPress,
+}: Props) {
   const { scheme } = useTheme();
+  const { locale, resolvedLanguage, t } = useI18n();
   const nowMinutes = useNowMinutes();
+  const money = (minor: number, code: string) => formatMoneyI18n(minor, code, t, resolvedLanguage);
 
   // 오늘은 24시간을 다 그린다 (현재 시각 바가 어디에 있든 보여야 한다).
   // 지난 날은 기록이 있는 구간만 그린다 — 빈 격자를 스크롤하게 만들 이유가 없다.
@@ -73,16 +91,32 @@ export function DayGrid({ day, metaOf, onPress, onLongPress }: Props) {
 
   return (
     <View>
+      {/* 날짜 줄이 곧 "하루 지출" 줄이다 — 오른쪽 숫자가 그날 총합(필터 무관) */}
       <View
-        className="flex-row items-baseline gap-2 px-1 pb-2 pt-5"
+        className="px-1 pb-2 pt-5"
         style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: scheme.border }}
       >
-        <Text className="text-base font-black text-neutral-900 dark:text-neutral-50">
-          {day.isToday ? '오늘' : day.label}
-        </Text>
-        <Text className="text-xs font-semibold" style={{ color: scheme.mutedForeground }}>
-          {day.count}건
-        </Text>
+        <View className="flex-row items-baseline gap-2">
+          <Text className="text-base font-black text-neutral-900 dark:text-neutral-50">
+            {day.isToday ? t('dashboard.today', '오늘') : dateLabel(day.key, locale)}
+          </Text>
+          <Text className="text-xs font-semibold" style={{ color: scheme.mutedForeground }}>
+            {t('main.recordCountValue', '{{count}}건', { count: total.count })}
+          </Text>
+          <View className="flex-1" />
+          <Text className="text-base font-black text-neutral-900 dark:text-neutral-50">
+            {total.count > 0 ? money(total.baseMinor, baseCurrency) : '—'}
+          </Text>
+        </View>
+
+        {total.localMinor > 0 ? (
+          <Text
+            className="mt-0.5 text-right text-xs font-semibold"
+            style={{ color: scheme.mutedForeground }}
+          >
+            {money(total.localMinor, localCurrency)}
+          </Text>
+        ) : null}
       </View>
 
       {Array.from({ length: to - from + 1 }, (_, i) => from + i).map((hour) => (
@@ -96,6 +130,8 @@ export function DayGrid({ day, metaOf, onPress, onLongPress }: Props) {
           metaOf={metaOf}
           onPress={onPress}
           onLongPress={onLongPress}
+          language={resolvedLanguage}
+          t={t}
         />
       ))}
     </View>
@@ -109,6 +145,8 @@ function HourRow({
   metaOf,
   onPress,
   onLongPress,
+  language,
+  t,
 }: {
   hour: number;
   items: Expense[];
@@ -116,6 +154,8 @@ function HourRow({
   metaOf: (expense: Expense) => ExpenseMeta;
   onPress: (expense: Expense) => void;
   onLongPress: (expense: Expense) => void;
+  language: AppLanguage;
+  t: TFunction;
 }) {
   const { scheme } = useTheme();
   // 칸이 늘어나도 현재 시각 바가 비율대로 서도록 실제 높이를 잰다.
@@ -165,14 +205,17 @@ function HourRow({
                   {expense.memo || expense.place || meta.label}
                 </Text>
                 <Text className="text-[13px] font-black text-neutral-900 dark:text-neutral-50">
-                  {formatMoney(expense.amount, expense.currency)}
+                  {formatMoneyI18n(expense.amount, expense.currency, t, language)}
                 </Text>
               </View>
 
               <View className="mt-0.5 flex-row items-center gap-1.5">
-                <Text className="text-[11px] font-semibold" style={{ color: scheme.mutedForeground }}>
+                <Text
+                  className="text-[11px] font-semibold"
+                  style={{ color: scheme.mutedForeground }}
+                >
                   {hhmm(expense.occurredAt)}
-                  {expense.paymentMethod ? ` · ${PAYMENT_LABEL[expense.paymentMethod]}` : ''}
+                  {expense.paymentMethod ? ` · ${paymentLabel(expense.paymentMethod, t)}` : ''}
                 </Text>
                 {meta.authorName ? (
                   <Text
@@ -187,17 +230,20 @@ function HourRow({
                     className="rounded-full px-1.5 py-px text-[10px] font-bold"
                     style={{ backgroundColor: scheme.primarySoft, color: scheme.primary }}
                   >
-                    {meta.usedByName} 사용
+                    {t('timeline.usedByName', '{{name}} 사용', { name: meta.usedByName })}
                   </Text>
                 ) : null}
                 {expense.isPersonal ? (
                   <Text className="text-[10px] font-bold" style={{ color: scheme.warning }}>
-                    개인
+                    {t('main.personal', '개인')}
                   </Text>
                 ) : null}
                 <View className="flex-1" />
-                <Text className="text-[11px] font-semibold" style={{ color: scheme.mutedForeground }}>
-                  {formatMoney(expense.baseAmount, expense.baseCurrency)}
+                <Text
+                  className="text-[11px] font-semibold"
+                  style={{ color: scheme.mutedForeground }}
+                >
+                  {formatMoneyI18n(expense.baseAmount, expense.baseCurrency, t, language)}
                 </Text>
               </View>
             </Pressable>

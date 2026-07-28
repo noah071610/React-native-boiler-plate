@@ -9,14 +9,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CategoryManager } from '@/components/domain/settings/category-manager';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
-import { categoryLabel } from '@/constants/categories';
 import { db } from '@/db';
 import { participants, type Category, type Expense, type PaymentMethod } from '@/db/schema';
 import { useCategoryGrid } from '@/hooks/use-category-grid';
 import { useTheme } from '@/hooks/use-theme';
+import { categoryDisplayLabel, useI18n } from '@/i18n';
 import { haptics } from '@/lib/haptics';
 import { useAppStore } from '@/store/app';
-import { useSettingsStore } from '@/store/settings';
 
 export type QuickRecordInput = {
   categoryId: string;
@@ -53,16 +52,13 @@ export const PAYMENTS: { id: PaymentMethod; icon: string; label: string }[] = [
 /** 4열 × 3줄. 그리드는 세로로 늘어나지 않고 이 단위로 좌우 페이지가 넘어간다. */
 const PAGE_SIZE = 12;
 
-/** 언어 설정 → BCP-47. 'system'이면 undefined를 넘겨 기기 로케일을 그대로 쓴다. */
-const LOCALES: Record<string, string | undefined> = { system: undefined, ko: 'ko-KR', en: 'en-US', ja: 'ja-JP' };
-
 /**
  * "2026년 7월 26일 오후 3:04" / "July 26, 2026 at 3:04 PM" / "2026年7月26日 15:04".
  * ponytail: dayjs 대신 Intl. 로케일 3개(ko/en/ja) 모두 런타임에 내장돼 있어서 의존성이 필요 없다.
  */
-export function formatDateTime(date: Date, language: string): string {
+export function formatDateTime(date: Date, locale: string): string {
   // dateStyle/timeStyle은 Hermes(Android) Intl에서 빠져 있는 버전이 있어 필드로 지정한다
-  return new Intl.DateTimeFormat(LOCALES[language], {
+  return new Intl.DateTimeFormat(locale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -96,9 +92,11 @@ export function QuickRecord({
   const grid = useCategoryGrid(expenses);
   const { lastPaymentMethod, setLastPaymentMethod } = useAppStore();
 
-  const language = useSettingsStore((s) => s.language);
+  const { locale, t } = useI18n();
 
-  const [payment, setPayment] = useState<PaymentMethod>(initial?.paymentMethod ?? lastPaymentMethod);
+  const [payment, setPayment] = useState<PaymentMethod>(
+    initial?.paymentMethod ?? lastPaymentMethod,
+  );
   /** 켜져 있으면 저장 버튼을 누른 그 순간이 지출 시각이다 (기본값) */
   const [now, setNow] = useState(initial?.occurredAt == null);
   const [occurredAt, setOccurredAt] = useState(() => new Date(initial?.occurredAt ?? Date.now()));
@@ -150,7 +148,7 @@ export function QuickRecord({
     onSave({
       categoryId: category.id,
       categoryIcon: category.icon,
-      categoryName: categoryLabel(category),
+      categoryName: categoryDisplayLabel(category, t),
       paymentMethod: payment,
       occurredAt: now ? Date.now() : occurredAt.getTime(),
       isPersonal: shared && isPersonal,
@@ -172,204 +170,201 @@ export function QuickRecord({
       >
         {/* 어느 여행에 붙는지 — 출발 전 기록이면 화면에 그 여행이 떠 있어도 한 번 더 말해준다 */}
         {notice ? (
-          <View
-            style={{ backgroundColor: scheme.primarySoft }}
-            className="rounded-2xl px-3.5 py-3"
-          >
+          <View style={{ backgroundColor: scheme.primarySoft }} className="rounded-2xl px-3.5 py-3">
             <Text style={{ color: scheme.primary }} className="text-xs font-bold leading-relaxed">
               {notice}
             </Text>
           </View>
         ) : null}
 
-        <Section title="어디에 썼나요">
-        <View onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}>
-          {gridWidth > 0 ? (
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              // 세로 스크롤 부모에게 터치를 뺏기지 않게 가로 제스처를 먼저 잡는다
-              directionalLockEnabled
-              onMomentumScrollEnd={(e) =>
-                setPage(Math.round(e.nativeEvent.contentOffset.x / gridWidth))
-              }
-            >
-              {pages.map((cells, index) => (
-                <View key={index} style={{ width: gridWidth }} className="flex-row flex-wrap">
-                  {cells.map((category) =>
-                    category ? (
-                      <Cell
-                        key={category.id}
-                        selected={selected === category.id}
-                        label={categoryLabel(category)}
-                        icon={<Text className="text-2xl">{category.icon}</Text>}
-                        onPress={() => {
-                          haptics.selection();
-                          setSelected(category.id);
-                        }}
-                      />
-                    ) : (
-                      // 항상 맨 마지막. 여기서 만든 카테고리는 이 버튼 앞자리에 붙는다
-                      <Cell
-                        key="add"
-                        dashed
-                        label="추가"
-                        icon={<Plus size={24} color={scheme.primary} />}
-                        onPress={() => {
-                          haptics.selection();
-                          setManaging(true);
-                        }}
-                      />
-                    ),
-                  )}
-                </View>
-              ))}
-            </ScrollView>
-          ) : null}
+        <Section title={t('main.whereSpent', '어디에 썼나요')}>
+          <View onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}>
+            {gridWidth > 0 ? (
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                // 세로 스크롤 부모에게 터치를 뺏기지 않게 가로 제스처를 먼저 잡는다
+                directionalLockEnabled
+                onMomentumScrollEnd={(e) =>
+                  setPage(Math.round(e.nativeEvent.contentOffset.x / gridWidth))
+                }
+              >
+                {pages.map((cells, index) => (
+                  <View key={index} style={{ width: gridWidth }} className="flex-row flex-wrap">
+                    {cells.map((category) =>
+                      category ? (
+                        <Cell
+                          key={category.id}
+                          selected={selected === category.id}
+                          label={categoryDisplayLabel(category, t)}
+                          icon={<Text className="text-2xl">{category.icon}</Text>}
+                          onPress={() => {
+                            haptics.selection();
+                            setSelected(category.id);
+                          }}
+                        />
+                      ) : (
+                        // 항상 맨 마지막. 여기서 만든 카테고리는 이 버튼 앞자리에 붙는다
+                        <Cell
+                          key="add"
+                          dashed
+                          label={t('main.add', '추가')}
+                          icon={<Plus size={24} color={scheme.primary} />}
+                          onPress={() => {
+                            haptics.selection();
+                            setManaging(true);
+                          }}
+                        />
+                      ),
+                    )}
+                  </View>
+                ))}
+              </ScrollView>
+            ) : null}
 
-          {pages.length > 1 ? (
-            <View className="mt-1 flex-row justify-center gap-1.5">
-              {pages.map((_, index) => (
-                <View
-                  key={index}
-                  style={{
-                    backgroundColor: index === page ? scheme.primary : scheme.mutedForeground,
-                    opacity: index === page ? 1 : 0.35,
-                  }}
-                  className="h-1.5 w-1.5 rounded-full"
-                />
-              ))}
-            </View>
-          ) : null}
-        </View>
-      </Section>
-
-      <Section title="결제수단">
-        <View className="flex-row gap-2">
-          {PAYMENTS.map((item) => (
-            <Chip
-              key={item.id}
-              label={`${item.icon} ${item.label}`}
-              selected={payment === item.id}
-              onPress={() => {
-                haptics.selection();
-                setPayment(item.id);
-              }}
-            />
-          ))}
-        </View>
-      </Section>
-
-      {/* 연동(참가자 2명)일 때만. 혼자 쓰는 여행에서는 물을 이유가 없다 */}
-      {shared ? (
-        <Section title="누가 사용했나요">
-          <View className="flex-row gap-2">
-            <Chip
-              label="공용"
-              selected={usedBy === null}
-              onPress={() => {
-                haptics.selection();
-                setUsedBy(null);
-              }}
-            />
-            {[me, other].map((member) =>
-              member ? (
-                <Chip
-                  key={member.id}
-                  label={member.name}
-                  selected={usedBy === member.id}
-                  onPress={() => {
-                    haptics.selection();
-                    setUsedBy(member.id);
-                  }}
-                />
-              ) : null,
-            )}
+            {pages.length > 1 ? (
+              <View className="mt-1 flex-row justify-center gap-1.5">
+                {pages.map((_, index) => (
+                  <View
+                    key={index}
+                    style={{
+                      backgroundColor: index === page ? scheme.primary : scheme.mutedForeground,
+                      opacity: index === page ? 1 : 0.35,
+                    }}
+                    className="h-1.5 w-1.5 rounded-full"
+                  />
+                ))}
+              </View>
+            ) : null}
           </View>
         </Section>
-      ) : null}
 
-      {/* ponytail: 과거 날짜의 환율 재계산은 rate_history가 붙은 뒤에 묻는다.
-          지금은 환율 소스가 시드 하나뿐이라 물어볼 다른 값이 없다. */}
-      <Section title="언제">
-        <View className="gap-2">
-          {/* 높이를 고정하지 않는다 — 네이티브 Switch 높이가 플랫폼마다 달라
-              h-12를 넘기면 세로 정렬이 위로 밀린다 */}
-          <View
-            style={{ backgroundColor: scheme.muted, minHeight: 52 }}
-            className="flex-row items-center justify-between rounded-2xl px-4 py-2"
-          >
-            <Text className="text-sm font-bold text-neutral-700 dark:text-neutral-200">
-              지금 (저장하는 시각)
-            </Text>
-            <Switch
-              value={now}
-              trackColor={{ true: scheme.primary, false: scheme.mutedForeground }}
-              // iOS 스위치는 51x31이라 컨테이너 정렬과 별개로 자기 박스를 벗어나지 않게 잡아준다
-              style={{ alignSelf: 'center' }}
-              onValueChange={(value) => {
-                haptics.selection();
-                setNow(value);
-                if (!value) setOccurredAt(new Date());
-              }}
-            />
+        <Section title={t('expense.paymentMethod', '결제수단')}>
+          <View className="flex-row gap-2">
+            {PAYMENTS.map((item) => (
+              <Chip
+                key={item.id}
+                label={`${item.icon} ${t(`main.payment.${item.id}`, item.label)}`}
+                selected={payment === item.id}
+                onPress={() => {
+                  haptics.selection();
+                  setPayment(item.id);
+                }}
+              />
+            ))}
           </View>
+        </Section>
 
-          {!now ? (
+        {/* 연동(참가자 2명)일 때만. 혼자 쓰는 여행에서는 물을 이유가 없다 */}
+        {shared ? (
+          <Section title={t('main.whoUsed', '누가 사용했나요')}>
+            <View className="flex-row gap-2">
+              <Chip
+                label={t('expense.shared', '공용')}
+                selected={usedBy === null}
+                onPress={() => {
+                  haptics.selection();
+                  setUsedBy(null);
+                }}
+              />
+              {[me, other].map((member) =>
+                member ? (
+                  <Chip
+                    key={member.id}
+                    label={member.name}
+                    selected={usedBy === member.id}
+                    onPress={() => {
+                      haptics.selection();
+                      setUsedBy(member.id);
+                    }}
+                  />
+                ) : null,
+              )}
+            </View>
+          </Section>
+        ) : null}
+
+        {/* ponytail: 과거 날짜의 환율 재계산은 rate_history가 붙은 뒤에 묻는다.
+          지금은 환율 소스가 시드 하나뿐이라 물어볼 다른 값이 없다. */}
+        <Section title={t('expense.when', '언제')}>
+          <View className="gap-2">
+            {/* 높이를 고정하지 않는다 — 네이티브 Switch 높이가 플랫폼마다 달라
+              h-12를 넘기면 세로 정렬이 위로 밀린다 */}
+            <View
+              style={{ backgroundColor: scheme.muted, minHeight: 52 }}
+              className="flex-row items-center justify-between rounded-2xl px-4 py-2"
+            >
+              <Text className="text-sm font-bold text-neutral-700 dark:text-neutral-200">
+                {t('main.nowAtSave', '지금 (저장하는 시각)')}
+              </Text>
+              <Switch
+                value={now}
+                trackColor={{ true: scheme.primary, false: scheme.mutedForeground }}
+                // iOS 스위치는 51x31이라 컨테이너 정렬과 별개로 자기 박스를 벗어나지 않게 잡아준다
+                style={{ alignSelf: 'center' }}
+                onValueChange={(value) => {
+                  haptics.selection();
+                  setNow(value);
+                  if (!value) setOccurredAt(new Date());
+                }}
+              />
+            </View>
+
+            {!now ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('main.pickExpenseTimeA11y', '지출 시각 고르기')}
+                onPress={() => {
+                  haptics.selection();
+                  setDraft(occurredAt);
+                  setStep('date');
+                }}
+                style={{ backgroundColor: scheme.muted }}
+                className="h-12 justify-center rounded-2xl px-4 active:opacity-70"
+              >
+                <Text className="text-sm font-bold text-neutral-900 dark:text-neutral-50">
+                  🗓 {formatDateTime(occurredAt, locale)}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </Section>
+
+        {shared ? (
+          <Section title={t('main.extraInfoOptional', '추가 정보 (선택)')}>
             <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="지출 시각 고르기"
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isPersonal }}
               onPress={() => {
                 haptics.selection();
-                setDraft(occurredAt);
-                setStep('date');
+                setIsPersonal((v) => !v);
               }}
-              style={{ backgroundColor: scheme.muted }}
-              className="h-12 justify-center rounded-2xl px-4 active:opacity-70"
+              className="flex-row items-center gap-2 py-1 active:opacity-70"
             >
-              <Text className="text-sm font-bold text-neutral-900 dark:text-neutral-50">
-                🗓 {formatDateTime(occurredAt, language)}
+              <View
+                style={{
+                  borderColor: isPersonal ? scheme.primary : scheme.mutedForeground,
+                  backgroundColor: isPersonal ? scheme.primary : 'transparent',
+                }}
+                className="h-5 w-5 items-center justify-center rounded-md border-2"
+              >
+                {isPersonal ? (
+                  <Check size={12} color={scheme.primaryForeground} strokeWidth={3} />
+                ) : null}
+              </View>
+              <Text className="text-sm font-semibold text-neutral-500 dark:text-neutral-400">
+                {t('main.personalExcludedSettlement', '나만 쓴 돈 (정산 제외)')}
               </Text>
             </Pressable>
-          ) : null}
-        </View>
-      </Section>
-
-      {shared ? (
-        <Section title="추가 정보 (선택)">
-          <Pressable
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: isPersonal }}
-            onPress={() => {
-              haptics.selection();
-              setIsPersonal((v) => !v);
-            }}
-            className="flex-row items-center gap-2 py-1 active:opacity-70"
-          >
-            <View
-              style={{
-                borderColor: isPersonal ? scheme.primary : scheme.mutedForeground,
-                backgroundColor: isPersonal ? scheme.primary : 'transparent',
-              }}
-              className="h-5 w-5 items-center justify-center rounded-md border-2"
-            >
-              {isPersonal ? (
-                <Check size={12} color={scheme.primaryForeground} strokeWidth={3} />
-              ) : null}
-            </View>
-            <Text className="text-sm font-semibold text-neutral-500 dark:text-neutral-400">
-              나만 쓴 돈 (정산 제외)
-            </Text>
-          </Pressable>
-        </Section>
-      ) : null}
+          </Section>
+        ) : null}
       </ScrollView>
 
       <View className="flex-row gap-2 pt-1">
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="계산기로 돌아가기"
+          accessibilityLabel={t('main.backToCalculatorA11y', '계산기로 돌아가기')}
           onPress={() => {
             haptics.selection();
             onBack();
@@ -381,7 +376,11 @@ export function QuickRecord({
         </Pressable>
         <View className="flex-1">
           <Button
-            label={selectedCategory ? (saveLabel ?? '저장하기') : '카테고리를 골라주세요'}
+            label={
+              selectedCategory
+                ? (saveLabel ?? t('main.saveRecord', '저장하기'))
+                : t('main.pickCategory', '카테고리를 골라주세요')
+            }
             disabled={!selectedCategory}
             onPress={save}
           />
@@ -398,7 +397,9 @@ export function QuickRecord({
             className="gap-4 rounded-t-3xl px-5 pt-6"
           >
             <Text className="text-xl font-black text-neutral-900 dark:text-neutral-50">
-              {step === 'time' ? '몇 시에 썼나요' : '언제 썼나요'}
+              {step === 'time'
+                ? t('main.pickTimeTitle', '몇 시에 썼나요')
+                : t('main.pickDateTitle', '언제 썼나요')}
             </Text>
             {/*
               높이는 이 껍데기가 고정으로 들고 피커에는 주지 않는다. 네이티브 Host가
@@ -425,7 +426,7 @@ export function QuickRecord({
               ) : null}
             </View>
             <Button
-              label={step === 'date' ? '다음' : '완료'}
+              label={step === 'date' ? t('main.next', '다음') : t('common.done', '완료')}
               onPress={() => {
                 if (step === 'date') return setStep('time');
                 setOccurredAt(draft);

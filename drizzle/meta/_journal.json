@@ -15,6 +15,13 @@
       "when": 1785141387154,
       "tag": "0001_expense_used_by",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785262135387,
+      "tag": "0002_tiresome_thunderbolts",
+      "breakpoints": true
     }
   ]
 }

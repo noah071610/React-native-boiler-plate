@@ -6,17 +6,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CountryList } from '@/components/domain/country-list';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
-import {
-  CURRENCIES,
-  countryNameOfCurrency,
-  flagOfCurrency,
-  type CountryInfo,
-} from '@/constants/currencies';
+import { flagOfDestination, type CountryInfo } from '@/constants/currencies';
 import type { Trip } from '@/db/schema';
 import { localDateKey } from '@/hooks/use-active-trip';
 import { useTheme } from '@/hooks/use-theme';
+import { currencyUnit, destinationLabel, formatMoneyI18n, useI18n } from '@/i18n';
 import { haptics } from '@/lib/haptics';
-import { formatMoney, toMinor } from '@/lib/money';
+import { toMinor } from '@/lib/money';
 import { useRate } from '@/lib/rates';
 import { findOverlap } from '@/lib/trip-dates';
 import {
@@ -32,6 +28,8 @@ import {
 export type TripSheetResult = {
   /** 여행하는 나라의 통화 */
   destinationCurrency: string;
+  /** 여행하는 나라. EUR처럼 통화가 같은 나라의 표시/히어로 구분용 */
+  destinationCountryCode: string | null;
   /** 'YYYY-MM-DD'. 둘 다 필수다 */
   startDate: string;
   endDate: string;
@@ -67,8 +65,12 @@ type FormProps = {
  */
 export function TripForm({ baseCurrency, trips, trip, onBack, onSubmit }: FormProps) {
   const { scheme } = useTheme();
+  const { resolvedLanguage, t } = useI18n();
 
   const [currency, setCurrency] = useState<string | null>(trip?.destinationCurrency ?? null);
+  const [countryCode, setCountryCode] = useState<string | null>(
+    trip?.destinationCountryCode ?? null,
+  );
   const [start, setStart] = useState<Date | null>(
     trip?.startDate ? parseKey(trip.startDate) : null,
   );
@@ -86,8 +88,9 @@ export function TripForm({ baseCurrency, trips, trip, onBack, onSubmit }: FormPr
   const quote = useRate(localCurrency, baseCurrency);
   const rate = quote?.rate ?? 0;
 
-  const baseUnit = CURRENCIES[baseCurrency]?.unitKo ?? baseCurrency;
-  const localUnit = CURRENCIES[localCurrency]?.unitKo ?? localCurrency;
+  const baseUnit = currencyUnit(baseCurrency, t);
+  const localUnit = currencyUnit(localCurrency, t);
+  const baseMoney = (minor: number) => formatMoneyI18n(minor, baseCurrency, t, resolvedLanguage);
 
   const changeBase = (text: string) => {
     setBaseText(text);
@@ -112,6 +115,7 @@ export function TripForm({ baseCurrency, trips, trip, onBack, onSubmit }: FormPr
   const selectCountry = (country: CountryInfo) => {
     haptics.selection();
     setCurrency(country.currency);
+    setCountryCode(country.code);
     // 통화가 바뀌면 환율이 달라진다 — 현지 환산액은 다시 받는다
     setLocalText('');
     setPickingCountry(false);
@@ -121,8 +125,15 @@ export function TripForm({ baseCurrency, trips, trip, onBack, onSubmit }: FormPr
     // minHeight: 높이가 없는 시트(메인) 안에서도 목록이 접히지 않게
     return (
       <View className="flex-1" style={{ minHeight: 420 }}>
-        <FormHeader title="어디로 가세요?" onBack={() => setPickingCountry(false)} />
-        <CountryList selectedCurrency={currency ?? undefined} onSelect={selectCountry} />
+        <FormHeader
+          title={t('main.whereAreYouGoing', '어디로 가세요?')}
+          onBack={() => setPickingCountry(false)}
+        />
+        <CountryList
+          selectedCurrency={currency ?? undefined}
+          selectedCountryCode={countryCode ?? undefined}
+          onSelect={selectCountry}
+        />
       </View>
     );
   }
@@ -136,19 +147,24 @@ export function TripForm({ baseCurrency, trips, trip, onBack, onSubmit }: FormPr
         contentContainerStyle={{ gap: 20, paddingBottom: 16 }}
       >
         <View>
-          <FormHeader title={trip ? '여행 수정' : '여행지 추가'} onBack={onBack} />
+          <FormHeader
+            title={
+              trip ? t('main.editTrip', '여행 수정') : t('main.addTripDestination', '여행지 추가')
+            }
+            onBack={onBack}
+          />
           <Text className="mt-1 text-sm font-semibold text-neutral-400">
-            기간이 오면 이 여행으로 자동으로 바뀌어요
+            {t('main.tripAutoSwitch', '기간이 오면 이 여행으로 자동으로 바뀌어요')}
           </Text>
         </View>
 
         <View className="gap-2">
           <Text className="pl-1 text-sm font-bold text-neutral-500 dark:text-neutral-400">
-            여행하는 나라
+            {t('main.travelCountry', '여행하는 나라')}
           </Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="여행하는 나라 선택"
+            accessibilityLabel={t('main.pickTravelCountryA11y', '여행하는 나라 선택')}
             onPress={() => {
               haptics.selection();
               setPickingCountry(true);
@@ -156,32 +172,45 @@ export function TripForm({ baseCurrency, trips, trip, onBack, onSubmit }: FormPr
             style={{ backgroundColor: scheme.muted }}
             className="h-14 flex-row items-center justify-between rounded-2xl px-4 active:opacity-70"
           >
-            <Text className="text-base font-bold text-neutral-500 dark:text-neutral-400">나라</Text>
+            <Text className="text-base font-bold text-neutral-500 dark:text-neutral-400">
+              {t('main.country', '나라')}
+            </Text>
             <Text className="text-base font-bold text-neutral-900 dark:text-neutral-50">
-              {currency ? `${flagOfCurrency(currency)} ${countryNameOfCurrency(currency)}` : '선택'}
+              {currency
+                ? `${flagOfDestination(countryCode, currency)} ${destinationLabel(countryCode, currency, t)}`
+                : t('main.select', '선택')}
             </Text>
           </Pressable>
         </View>
 
         <View className="gap-2">
           <Text className="pl-1 text-sm font-bold text-neutral-500 dark:text-neutral-400">
-            여행 기간
+            {t('main.tripPeriod', '여행 기간')}
           </Text>
-          <DateField label="시작일" value={start} onChange={setStart} />
+          <DateField label={t('main.startDate', '시작일')} value={start} onChange={setStart} />
           <DateField
-            label="종료일"
+            label={t('main.endDate', '종료일')}
             value={end}
             minimumDate={start ?? undefined}
             onChange={setEnd}
           />
           {conflict ? (
             <Text className="pl-1 text-xs font-bold" style={{ color: scheme.destructive }}>
-              {countryNameOfCurrency(conflict.destinationCurrency)} 여행({conflict.startDate} –{' '}
-              {conflict.endDate})과 기간이 겹쳐요
+              {t('main.tripConflict', '{{country}} 여행({{start}} – {{end}})과 기간이 겹쳐요', {
+                country: destinationLabel(
+                  conflict.destinationCountryCode,
+                  conflict.destinationCurrency,
+                  t,
+                ),
+                start: conflict.startDate ?? '',
+                end: conflict.endDate ?? '',
+              })}
             </Text>
           ) : (
             <Text className="pl-1 text-xs font-semibold text-neutral-400">
-              {days != null ? `${days}일 여행` : '시작일과 종료일을 모두 정해주세요'}
+              {days != null
+                ? t('main.tripDays', '{{days}}일 여행', { days })
+                : t('main.pickBothDates', '시작일과 종료일을 모두 정해주세요')}
             </Text>
           )}
         </View>
@@ -191,7 +220,7 @@ export function TripForm({ baseCurrency, trips, trip, onBack, onSubmit }: FormPr
           <>
             <View className="gap-2">
               <Text className="pl-1 text-sm font-bold text-neutral-500 dark:text-neutral-400">
-                예산 (선택)
+                {t('main.budgetOptional', '예산 (선택)')}
               </Text>
               <AmountField
                 unit={baseUnit}
@@ -208,7 +237,9 @@ export function TripForm({ baseCurrency, trips, trip, onBack, onSubmit }: FormPr
               />
               {budgetMinor > 0 && days != null ? (
                 <Text className="pl-1 text-xs font-bold" style={{ color: scheme.primary }}>
-                  하루 {formatMoney(Math.round(budgetMinor / days), baseCurrency)} 꼴이에요
+                  {t('main.perDayBudget', '하루 {{amount}} 꼴이에요', {
+                    amount: baseMoney(Math.round(budgetMinor / days)),
+                  })}
                 </Text>
               ) : null}
             </View>
@@ -225,12 +256,13 @@ export function TripForm({ baseCurrency, trips, trip, onBack, onSubmit }: FormPr
       </ScrollView>
 
       <Button
-        label={trip ? '저장' : '여행 추가'}
+        label={trip ? t('common.save', '저장') : t('main.addTripButton', '여행 추가')}
         disabled={!ready}
         onPress={() => {
           if (!ready || !startKey || !endKey || !currency) return;
           onSubmit({
             destinationCurrency: currency,
+            destinationCountryCode: countryCode,
             startDate: startKey,
             endDate: endKey,
             // 수정이면 예산은 손대지 않는다 (예산 조정 시트 전용)
@@ -250,13 +282,14 @@ export function TripForm({ baseCurrency, trips, trip, onBack, onSubmit }: FormPr
 /** 제목 한 줄. onBack이 있으면 왼쪽에 뒤로가기가 붙는다. */
 export function FormHeader({ title, onBack }: { title: string; onBack?: () => void }) {
   const { scheme } = useTheme();
+  const { t } = useI18n();
 
   return (
     <View className="flex-row items-center gap-1">
       {onBack ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="뒤로"
+          accessibilityLabel={t('main.backA11y', '뒤로')}
           onPress={() => {
             haptics.selection();
             onBack();

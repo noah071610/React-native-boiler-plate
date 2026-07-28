@@ -10,7 +10,6 @@ import { CalculatorSheet, type CalcResult } from '@/components/domain/main/calcu
 import { CurrencyPairCard, type PairSide } from '@/components/domain/main/currency-pair-card';
 import type { QuickRecordInput } from '@/components/domain/main/quick-record';
 import { RateGraph } from '@/components/domain/main/rate-graph';
-import { PhraseCard } from '@/components/domain/main/phrase-card';
 import { RecentCalcs } from '@/components/domain/main/recent-calcs';
 import { TodaySummary } from '@/components/domain/main/today-summary';
 import { TripHero } from '@/components/domain/main/trip-hero';
@@ -20,21 +19,36 @@ import { CountryList } from '@/components/domain/country-list';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { FullScreenLoader } from '@/components/ui/full-screen-loader';
 import { Toast } from '@/components/ui/toast';
-import { countryNameOfCurrency, findCountryByCurrency } from '@/constants/currencies';
+import { type CountryInfo, findCountryByCode, findCountryByCurrency } from '@/constants/currencies';
 import { db } from '@/db';
 import { expenses, trips } from '@/db/schema';
 import { localDateKey, useActiveTrip } from '@/hooks/use-active-trip';
 import { useTheme } from '@/hooks/use-theme';
+import { formatMoneyI18n, useI18n } from '@/i18n';
 import { createTrip } from '@/lib/create-trip';
 import { haptics } from '@/lib/haptics';
-import { convertMinor, formatMoney, toMinor } from '@/lib/money';
+import { convertMinor, toMinor } from '@/lib/money';
 import { useRate } from '@/lib/rates';
 import { insertExpense } from '@/lib/save-expense';
 import { useAppStore, type RecentCalc } from '@/store/app';
 
+type T = ReturnType<typeof useI18n>['t'];
+
+const countryLabel = (country: CountryInfo, t: T) => t(`country.${country.code}`, country.nameKo);
+
+const destinationName = (
+  countryCode: string | null | undefined,
+  currency: string,
+  t: T,
+): string => {
+  const country = findCountryByCode(countryCode) ?? findCountryByCurrency(currency);
+  return country ? countryLabel(country, t) : currency;
+};
+
 export default function MainScreen() {
   const router = useRouter();
   const { scheme } = useTheme();
+  const { resolvedLanguage, t } = useI18n();
   const insets = useSafeAreaInsets();
 
   const {
@@ -62,13 +76,17 @@ export default function MainScreen() {
    * 다시 그리면 현재 여행의 통화로 돌아온다.
    */
   const [localCurrency, setLocalCurrency] = useState(tripCurrency);
+  const [localCountryCode, setLocalCountryCode] = useState<string | null>(
+    trip?.destinationCountryCode ?? null,
+  );
   // 기본 표시 금액은 1이다 (1바트 = 43.42원)
   const [localMinor, setLocalMinor] = useState(() => toMinor(1, tripCurrency));
 
   useEffect(() => {
     setLocalCurrency(tripCurrency);
+    setLocalCountryCode(trip?.destinationCountryCode ?? null);
     setLocalMinor(toMinor(1, tripCurrency));
-  }, [tripCurrency]);
+  }, [tripCurrency, trip?.destinationCountryCode]);
 
   const quote = useRate(localCurrency, baseCurrency);
   const rate = quote?.rate ?? 0;
@@ -96,7 +114,7 @@ export default function MainScreen() {
   const [flashAt, setFlashAt] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
 
-  if (loading) return <FullScreenLoader title="여행을 불러오는 중" />;
+  if (loading) return <FullScreenLoader title={t('settings.loading', '여행을 불러오는 중')} />;
 
   /**
    * 여행 중 + 출발 전까지 기록할 수 있다. 항공권·eSIM·캐리어처럼 떠나기 전에
@@ -109,7 +127,9 @@ export default function MainScreen() {
   /** 출발 전이면 어느 여행에 붙는지 반드시 말해준다 (화면에는 여행 하나만 떠 있다) */
   const recordNotice =
     canRecord && phase === 'before' && trip
-      ? `✈️ 아직 여행 전이에요 · ${countryNameOfCurrency(trip.destinationCurrency)} 여행 지출로 기록돼요`
+      ? t('dashboard.recordNotice', '✈️ 아직 여행 전이에요 · {{country}} 여행 지출로 기록돼요', {
+          country: destinationName(trip.destinationCountryCode, trip.destinationCurrency, t),
+        })
       : null;
 
   const openCalc = (side: PairSide, initialMinor = 0) => {
@@ -162,7 +182,11 @@ export default function MainScreen() {
     setFlashAt(Date.now());
     setSaved({
       id,
-      message: `${input.categoryIcon} ${input.categoryName} · ${formatMoney(result.localMinor, localCurrency)} 저장`,
+      message: t('dashboard.savedExpense', '{{icon}} {{category}} · {{amount}} 저장', {
+        icon: input.categoryIcon,
+        category: input.categoryName,
+        amount: formatMoneyI18n(result.localMinor, localCurrency, t, resolvedLanguage),
+      }),
     });
   };
 
@@ -213,7 +237,9 @@ export default function MainScreen() {
   };
 
   const addTrip = async (result: TripSheetResult) => {
-    const country = findCountryByCurrency(result.destinationCurrency);
+    const country =
+      findCountryByCode(result.destinationCountryCode) ??
+      findCountryByCurrency(result.destinationCurrency);
     if (!country) return;
     setTripOpen(false);
     await createTrip({
@@ -225,17 +251,23 @@ export default function MainScreen() {
       budgetCurrency: result.budgetCurrency,
     });
     haptics.notification();
-    setToast(`${country.nameKo} 여행을 만들었어요`);
+    setToast(
+      t('settings.createdTrip', '{{country}} 여행을 만들었어요', {
+        country: countryLabel(country, t),
+      }),
+    );
   };
 
   /**
    * 현지 통화 변경은 이 화면에서만 유효하다 (다시 그리면 여행지 통화로 돌아온다).
    * 기준 통화는 유저 본인 통화라 저장한다 — 여행이 있으면 그 여행에도 맞춘다.
    */
-  const changeCurrency = async (side: PairSide, currency: string) => {
+  const changeCurrency = async (side: PairSide, country: CountryInfo) => {
     setCurrencySide(null);
+    const currency = country.currency;
     if (side === 'local') {
       setLocalCurrency(currency);
+      setLocalCountryCode(country.code);
       setLocalMinor(toMinor(1, currency));
       return;
     }
@@ -251,6 +283,7 @@ export default function MainScreen() {
   const pairCard = (
     <CurrencyPairCard
       localCurrency={localCurrency}
+      localCountryCode={localCountryCode}
       baseCurrency={baseCurrency}
       localMinor={localMinor}
       baseMinor={baseMinor}
@@ -274,7 +307,10 @@ export default function MainScreen() {
   /** 여행 기간이 아니면 예산 자리는 "여행지 추가하기"다 */
   const upcomingLabel =
     phase === 'before' && trip?.startDate
-      ? `다음 여행 ${countryNameOfCurrency(trip.destinationCurrency)} · ${trip.startDate}`
+      ? t('dashboard.nextTrip', '다음 여행 {{country}} · {{date}}', {
+          country: destinationName(trip.destinationCountryCode, trip.destinationCurrency, t),
+          date: trip.startDate,
+        })
       : null;
 
   const budget =
@@ -317,7 +353,7 @@ export default function MainScreen() {
       baseMinor={phase === 'after' ? spentBase : today.base}
       baseCurrency={baseCurrency}
       vsYesterdayPercent={phase === 'after' ? null : vsYesterdayPercent}
-      label={phase === 'after' ? '여행 전체' : '오늘'}
+      label={phase === 'after' ? t('dashboard.allTrip', '여행 전체') : t('dashboard.today', '오늘')}
       onPress={() => router.push('/timeline')}
     />
   );
@@ -333,6 +369,7 @@ export default function MainScreen() {
   const hero = (
     <TripHero
       localCurrency={tripCurrency}
+      destinationCountryCode={trip?.destinationCountryCode ?? null}
       phase={phase}
       startDate={trip?.startDate ?? null}
       endDate={trip?.endDate ?? null}
@@ -350,18 +387,18 @@ export default function MainScreen() {
 
   // 여행 중일 때만 현지 날씨다. 그 밖에는 내가 사는 나라(온보딩에서 고른 통화) 날씨를 본다.
   const weather = (
-    <WeatherCard localCurrency={phase === 'during' ? tripCurrency : homeCurrency} />
+    <WeatherCard
+      localCurrency={phase === 'during' ? tripCurrency : homeCurrency}
+      destinationCountryCode={phase === 'during' ? trip?.destinationCountryCode : null}
+    />
   );
-  // 회화는 갈 곳이 있을 때만 의미가 있다
-  const phrases = trip ? <PhraseCard /> : null;
-
   // 섹션은 동일하고 순서와 강조만 바뀐다 (여행 단계에 따른 모드)
   const sections = (
     phase === 'during'
-      ? [hero, pairCard, recent, budget, weather, phrases, graph, summary]
+      ? [hero, pairCard, recent, budget, weather, graph, summary]
       : phase === 'after'
-        ? [hero, pairCard, budget, graph, phrases, summary]
-        : [hero, pairCard, graph, budget, weather, phrases, recent]
+        ? [hero, pairCard, budget, graph, summary]
+        : [hero, pairCard, recent, graph, budget, weather]
   ).filter(Boolean);
 
   return (
@@ -383,13 +420,13 @@ export default function MainScreen() {
       {/* 하단 중앙 배지 — 스크롤과 무관하게 항상 떠 있다 */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="환율 계산하기"
+        accessibilityLabel={t('dashboard.exchangeCalculator', '환율 계산하기')}
         onPress={() => openCalc('local')}
         style={{ backgroundColor: scheme.primary, bottom: insets.bottom + 20 }}
         className="absolute self-center rounded-full px-6 py-3 active:opacity-80"
       >
         <Text style={{ color: scheme.primaryForeground }} className="text-base font-bold">
-          환율 계산하기
+          {t('dashboard.exchangeCalculator', '환율 계산하기')}
         </Text>
       </Pressable>
 
@@ -399,14 +436,14 @@ export default function MainScreen() {
         duration={5000}
         actions={[
           {
-            label: '수정',
+            label: t('common.edit', '수정'),
             onPress: () => {
               const id = saved?.id;
               setSaved(null);
               if (id) router.push({ pathname: '/expense', params: { id } });
             },
           },
-          { label: '취소', onPress: () => void undoSave() },
+          { label: t('common.cancel', '취소'), onPress: () => void undoSave() },
         ]}
         onHide={() => setSaved(null)}
       />
@@ -417,6 +454,7 @@ export default function MainScreen() {
         visible={calcSide != null}
         side={calcSide ?? 'local'}
         localCurrency={localCurrency}
+        localCountryCode={localCountryCode}
         baseCurrency={baseCurrency}
         rate={rate}
         initialMinor={calcInitial}
@@ -459,12 +497,17 @@ export default function MainScreen() {
           className="flex-1 rounded-t-3xl px-5 pt-6"
         >
           <Text className="mb-4 text-xl font-black text-neutral-900 dark:text-neutral-50">
-            {currencySide === 'base' ? '기준 통화' : '현지 통화'}
+            {currencySide === 'base'
+              ? t('settings.homeCurrency', '기준 통화')
+              : t('dashboard.localCurrency', '현지 통화')}
           </Text>
           <CountryList
             selectedCurrency={currencySide === 'base' ? baseCurrency : localCurrency}
+            selectedCountryCode={
+              currencySide === 'local' ? (localCountryCode ?? undefined) : undefined
+            }
             onSelect={(country) => {
-              if (currencySide) void changeCurrency(currencySide, country.currency);
+              if (currencySide) void changeCurrency(currencySide, country);
             }}
           />
         </View>

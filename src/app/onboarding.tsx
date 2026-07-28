@@ -7,6 +7,7 @@ import { CountryList } from '@/components/domain/country-list';
 import { FullScreenLoader } from '@/components/ui/full-screen-loader';
 import { type CountryInfo } from '@/constants/currencies';
 import { useTheme } from '@/hooks/use-theme';
+import { useI18n } from '@/i18n';
 import { inferBaseCurrency } from '@/lib/create-trip';
 import { useAppStore } from '@/store/app';
 
@@ -20,6 +21,7 @@ import { useAppStore } from '@/store/app';
 export default function OnboardingScreen() {
   const router = useRouter();
   const { scheme } = useTheme();
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const completeOnboarding = useAppStore((s) => s.completeOnboarding);
   const [creating, setCreating] = useState(false);
@@ -31,7 +33,7 @@ export default function OnboardingScreen() {
     router.replace('/');
   };
 
-  if (creating) return <FullScreenLoader title="준비하는 중" />;
+  if (creating) return <FullScreenLoader title={t('onboarding.preparing', '준비하는 중')} />;
 
   return (
     <View
@@ -47,10 +49,10 @@ export default function OnboardingScreen() {
         TABICA
       </Text>
       <Text className="mt-2 text-3xl font-black tracking-tight text-neutral-900 dark:text-neutral-50">
-        어느 나라로 여행을 가세요?
+        {t('onboarding.title', '어느 나라로 여행을 가세요?')}
       </Text>
       <Text className="mb-6 mt-2 text-sm font-semibold text-neutral-400">
-        지금은 환율만 설정하고 여행 일정은 나중에 추가해요.
+        {t('onboarding.subtitle', '지금은 환율만 설정하고 여행 일정은 나중에 추가해요.')}
       </Text>
 
       <CountryList onSelect={select} />

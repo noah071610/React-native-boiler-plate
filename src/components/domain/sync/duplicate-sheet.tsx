@@ -3,15 +3,16 @@ import { Text, View } from 'react-native';
 import { SheetLayout } from '@/components/ui/sheet-layout';
 import type { Expense } from '@/db/schema';
 import { useTheme } from '@/hooks/use-theme';
+import { formatMoneyI18n, useI18n } from '@/i18n';
 import type { DuplicatePair } from '@/lib/sync';
-import { formatMoney } from '@/lib/money';
 
-const timeLabel = (ms: number) => {
-  const d = new Date(ms);
-  const hh = `${d.getHours()}`.padStart(2, '0');
-  const mm = `${d.getMinutes()}`.padStart(2, '0');
-  return `${d.getMonth() + 1}월 ${d.getDate()}일 ${hh}:${mm}`;
-};
+const timeLabel = (ms: number, locale: string) =>
+  new Intl.DateTimeFormat(locale, {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(ms));
 
 /**
  * 유사 기록 확인 — 동기화 직후 한 쌍씩 넘기며 묻는다 (layout-sync §중복 감지).
@@ -38,6 +39,7 @@ export function DuplicateSheet({
   onKeepBoth: () => void;
 }) {
   const { scheme } = useTheme();
+  const { locale, resolvedLanguage, t } = useI18n();
   if (!pair) return null;
 
   const row = (expense: Expense, first: boolean) => (
@@ -47,14 +49,16 @@ export function DuplicateSheet({
       className="gap-1 py-3"
     >
       <Text className="text-xs font-semibold text-neutral-400">
-        {timeLabel(expense.occurredAt)}
+        {timeLabel(expense.occurredAt, locale)}
       </Text>
       <View className="flex-row items-center justify-between gap-3">
         <Text className="text-base font-black text-neutral-900 dark:text-neutral-50">
-          {formatMoney(expense.amount, expense.currency)}
+          {formatMoneyI18n(expense.amount, expense.currency, t, resolvedLanguage)}
         </Text>
         <Text className="text-xs font-bold text-neutral-400">
-          {expense.authorId === myParticipantId ? '내가 기록' : `${authorName}가 기록`}
+          {expense.authorId === myParticipantId
+            ? t('sync.recordedByMe', '내가 기록')
+            : t('sync.recordedByName', '{{name}}가 기록', { name: authorName })}
         </Text>
       </View>
     </View>
@@ -64,17 +68,14 @@ export function DuplicateSheet({
     <SheetLayout
       visible
       onClose={onKeepBoth}
-      title="비슷한 기록이 있어요"
-      subtitle="같은 결제를 둘이 각각 기록했을 수 있어요"
-      primaryLabel="둘 다 맞아요"
+      title={t('sync.similarRecordsTitle', '비슷한 기록이 있어요')}
+      subtitle={t('sync.similarRecordsSubtitle', '같은 결제를 둘이 각각 기록했을 수 있어요')}
+      primaryLabel={t('sync.keepBoth', '둘 다 맞아요')}
       onPrimary={onKeepBoth}
-      secondaryLabel="하나로 합치기"
+      secondaryLabel={t('sync.mergeOne', '하나로 합치기')}
       onSecondary={onMerge}
     >
-      <View
-        style={{ borderColor: scheme.border }}
-        className="rounded-2xl border px-4 py-1"
-      >
+      <View style={{ borderColor: scheme.border }} className="rounded-2xl border px-4 py-1">
         {row(pair.keep, true)}
         {row(pair.drop, false)}
       </View>
@@ -84,7 +85,7 @@ export function DuplicateSheet({
         </Text>
       ) : null}
       <Text className="mt-2 text-center text-xs font-semibold text-neutral-400">
-        합치면 먼저 기록된 쪽이 남아요
+        {t('sync.mergeKeepsEarlier', '합치면 먼저 기록된 쪽이 남아요')}
       </Text>
     </SheetLayout>
   );

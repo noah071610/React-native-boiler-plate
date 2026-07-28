@@ -99,7 +99,10 @@ export const COUNTRIES: CountryInfo[] = [
 ];
 
 /** 나라 이름 / 통화 코드 / 통화 이름 전부로 매칭한다 (§온보딩 검색 규칙). */
-export function searchCountries(query: string): CountryInfo[] {
+export function searchCountries(
+  query: string,
+  extraTerms?: (country: CountryInfo, currency: CurrencyInfo | undefined) => string[],
+): CountryInfo[] {
   const q = query.trim().toLowerCase();
   if (!q) return COUNTRIES;
   return COUNTRIES.filter((c) => {
@@ -111,6 +114,7 @@ export function searchCountries(query: string): CountryInfo[] {
       c.currency,
       cur?.nameKo ?? '',
       ...(cur?.aliases ?? []),
+      ...(extraTerms?.(c, cur) ?? []),
     ];
     return haystack.some((h) => h.toLowerCase().includes(q));
   });
@@ -123,6 +127,24 @@ export function flagOfCurrency(currency: string): string {
 
 export function countryNameOfCurrency(currency: string): string {
   return COUNTRIES.find((c) => c.currency === currency)?.nameKo ?? currency;
+}
+
+export function findCountryByCode(code: string | null | undefined): CountryInfo | null {
+  return code ? (COUNTRIES.find((c) => c.code === code) ?? null) : null;
+}
+
+export function flagOfDestination(
+  countryCode: string | null | undefined,
+  currency: string,
+): string {
+  return findCountryByCode(countryCode)?.flag ?? flagOfCurrency(currency);
+}
+
+export function countryNameOfDestination(
+  countryCode: string | null | undefined,
+  currency: string,
+): string {
+  return findCountryByCode(countryCode)?.nameKo ?? countryNameOfCurrency(currency);
 }
 
 /** 통화 코드로 나라를 되찾는다 — 시트가 통화만 들고 여행을 만들 때 쓴다. */

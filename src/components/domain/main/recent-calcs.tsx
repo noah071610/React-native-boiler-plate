@@ -1,8 +1,8 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
+import { formatMoneyI18n, useI18n } from '@/i18n';
 import { haptics } from '@/lib/haptics';
-import { formatMoney } from '@/lib/money';
 import type { RecentCalc } from '@/store/app';
 
 type Props = {
@@ -17,12 +17,13 @@ type Props = {
  */
 export function RecentCalcs({ items, onPress, onLongPress }: Props) {
   const { scheme } = useTheme();
+  const { resolvedLanguage, t } = useI18n();
   if (items.length === 0) return null;
 
   return (
     <View>
       <Text className="mb-2 pl-1 text-sm font-bold text-neutral-500 dark:text-neutral-400">
-        최근 계산
+        {t('main.recentCalcs', '최근 계산')}
       </Text>
       <ScrollView
         horizontal
@@ -33,7 +34,10 @@ export function RecentCalcs({ items, onPress, onLongPress }: Props) {
           <Pressable
             key={calc.id}
             accessibilityRole="button"
-            accessibilityHint="길게 누르면 이 금액으로 지출을 기록합니다"
+            accessibilityHint={t(
+              'main.recentCalcHint',
+              '길게 누르면 이 금액으로 지출을 기록합니다',
+            )}
             onPress={() => {
               haptics.selection();
               onPress(calc);
@@ -46,7 +50,8 @@ export function RecentCalcs({ items, onPress, onLongPress }: Props) {
             className="rounded-full px-4 py-2 active:opacity-70"
           >
             <Text className="text-sm font-bold text-neutral-700 dark:text-neutral-200">
-              {formatMoney(calc.amount, calc.currency)} ↔ {formatMoney(calc.baseAmount, calc.baseCurrency)}
+              {formatMoneyI18n(calc.amount, calc.currency, t, resolvedLanguage)} ↔{' '}
+              {formatMoneyI18n(calc.baseAmount, calc.baseCurrency, t, resolvedLanguage)}
             </Text>
           </Pressable>
         ))}

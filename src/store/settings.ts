@@ -14,7 +14,7 @@ export const FONT_SCALE_MAX = 1.3;
 type SettingsState = {
   theme: ThemePreference;
   fontScale: number;
-  language: LanguagePreference; // selector value only — i18n stays dormant
+  language: LanguagePreference;
   haptics: boolean;
   setTheme: (theme: ThemePreference) => void;
   setFontScale: (fontScale: number) => void;

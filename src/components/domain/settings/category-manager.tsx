@@ -14,11 +14,11 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ReorderableList } from '@/components/ui/reorderable-list';
-import { categoryLabel } from '@/constants/categories';
 import { DEFAULT_NEW_ICON, EMOJI_GROUPS } from '@/constants/emojis';
 import { db } from '@/db';
 import { categories, type Category } from '@/db/schema';
 import { useTheme } from '@/hooks/use-theme';
+import { categoryDisplayLabel, useI18n, type TFunction } from '@/i18n';
 import { haptics } from '@/lib/haptics';
 import { newId } from '@/lib/utils';
 
@@ -27,16 +27,32 @@ const ROW_HEIGHT = 56;
 const NAME_MAX = 10;
 
 /** 편집 중인 값. id가 null이면 새로 만드는 중이다. */
-type Draft = { id: string | null; key: string | null; name: string; icon: string };
+type Draft = {
+  id: string | null;
+  key: string | null;
+  name: string;
+  defaultName: string | null;
+  icon: string;
+};
 
-const draftOf = (category: Category): Draft => ({
-  id: category.id,
-  key: category.key,
-  name: categoryLabel(category),
-  icon: category.icon,
+const draftOf = (category: Category, t: TFunction): Draft => {
+  const defaultName = category.name == null ? categoryDisplayLabel(category, t) : null;
+  return {
+    id: category.id,
+    key: category.key,
+    name: category.name ?? defaultName ?? '',
+    defaultName,
+    icon: category.icon,
+  };
+};
+
+const newDraft = (): Draft => ({
+  id: null,
+  key: null,
+  name: '',
+  defaultName: null,
+  icon: DEFAULT_NEW_ICON,
 });
-
-const newDraft = (): Draft => ({ id: null, key: null, name: '', icon: DEFAULT_NEW_ICON });
 
 /**
  * 카테고리 관리 패널 — 시트가 아니라 "내용"이다.
@@ -46,6 +62,7 @@ const newDraft = (): Draft => ({ id: null, key: null, name: '', icon: DEFAULT_NE
  */
 export function CategoryManager({ onBack }: { onBack: () => void }) {
   const { scheme } = useTheme();
+  const { t } = useI18n();
 
   // 삭제한 것(hiddenAt)은 목록에서 사라진다 — 과거 지출은 이 행을 그대로 참조한다
   const query = useLiveQuery(
@@ -103,7 +120,8 @@ export function CategoryManager({ onBack }: { onBack: () => void }) {
 
   const submit = async () => {
     if (!draft) return;
-    const label = draft.name.trim();
+    const rawLabel = draft.name.trim();
+    const label = draft.defaultName && rawLabel === draft.defaultName ? '' : rawLabel;
     const now = Date.now();
 
     if (!draft.id) {
@@ -131,11 +149,19 @@ export function CategoryManager({ onBack }: { onBack: () => void }) {
   };
 
   if (draft) {
-    const label = draft.name.trim();
+    const rawLabel = draft.name.trim();
+    const label = draft.defaultName && rawLabel === draft.defaultName ? '' : rawLabel;
     const canSave = Boolean(label) || Boolean(draft.key);
     return (
       <View className="flex-1">
-        <Header title={draft.id ? '카테고리 수정' : '새 카테고리'} onBack={() => setDraft(null)} />
+        <Header
+          title={
+            draft.id
+              ? t('categoryManager.editTitle', '카테고리 수정')
+              : t('categoryManager.newTitle', '새 카테고리')
+          }
+          onBack={() => setDraft(null)}
+        />
 
         <View className="mb-4 flex-row items-center gap-3">
           <View
@@ -147,9 +173,9 @@ export function CategoryManager({ onBack }: { onBack: () => void }) {
           <TextInput
             value={draft.name}
             onChangeText={(name) => setDraft((d) => (d ? { ...d, name } : d))}
-            placeholder="이름 (예: 마사지)"
+            placeholder={t('categoryManager.namePlaceholder', '이름 (예: 마사지)')}
             placeholderTextColor={scheme.mutedForeground}
-            accessibilityLabel="카테고리 이름"
+            accessibilityLabel={t('categoryManager.nameA11y', '카테고리 이름')}
             // 그리드 한 칸(4열)에 한 줄로 들어가야 해서 길이를 막는다
             maxLength={NAME_MAX}
             autoFocus={!draft.id}
@@ -204,7 +230,7 @@ export function CategoryManager({ onBack }: { onBack: () => void }) {
 
         <View className="pt-2">
           <Button
-            label={draft.id ? '저장' : '만들기'}
+            label={draft.id ? t('common.save', '저장') : t('categoryManager.create', '만들기')}
             disabled={!canSave}
             onPress={() => void submit()}
           />
@@ -215,9 +241,12 @@ export function CategoryManager({ onBack }: { onBack: () => void }) {
 
   return (
     <View className="flex-1">
-      <Header title="카테고리 관리" onBack={onBack} />
+      <Header title={t('settings.categories', '카테고리 관리')} onBack={onBack} />
       <Text className="-mt-2 mb-3 text-sm font-semibold text-neutral-400">
-        길게 눌러 순서를 바꾸고, 왼쪽으로 밀면 수정·삭제가 나와요
+        {t(
+          'categoryManager.description',
+          '길게 눌러 순서를 바꾸고, 왼쪽으로 밀면 수정·삭제가 나와요',
+        )}
       </Text>
 
       <ScrollView
@@ -229,7 +258,7 @@ export function CategoryManager({ onBack }: { onBack: () => void }) {
           order={order}
           onMove={(from, to) => void move(from, to)}
           onDragChange={setDragging}
-          onEdit={(item) => setDraft(draftOf(item))}
+          onEdit={(item) => setDraft(draftOf(item, t))}
           onDelete={setConfirm}
         />
       </ScrollView>
@@ -237,7 +266,7 @@ export function CategoryManager({ onBack }: { onBack: () => void }) {
       {/* 목록이 길어져도 만들기는 늘 같은 자리에 있어야 한다 */}
       <View className="pt-2">
         <Button
-          label="새 카테고리 만들기"
+          label={t('categoryManager.createNew', '새 카테고리 만들기')}
           icon={<Plus size={18} color={scheme.primaryForeground} />}
           onPress={() => {
             haptics.selection();
@@ -248,15 +277,24 @@ export function CategoryManager({ onBack }: { onBack: () => void }) {
 
       <ConfirmDialog
         visible={confirm !== null}
-        title={confirm ? `'${categoryLabel(confirm)}'을 삭제할까요?` : ''}
-        message="이미 기록한 지출은 그대로 남고, 앞으로 고를 수 없게 돼요."
+        title={
+          confirm
+            ? t('categoryManager.deleteTitle', "'{{name}}'을 삭제할까요?", {
+                name: categoryDisplayLabel(confirm, t),
+              })
+            : ''
+        }
+        message={t(
+          'categoryManager.deleteMessage',
+          '이미 기록한 지출은 그대로 남고, 앞으로 고를 수 없게 돼요.',
+        )}
         actions={[
           {
-            label: '삭제',
+            label: t('common.delete', '삭제'),
             variant: 'destructive',
             onPress: () => confirm && void remove(confirm),
           },
-          { label: '그대로 둘게요', variant: 'ghost' },
+          { label: t('common.keepIt', '그대로 둘게요'), variant: 'ghost' },
         ]}
         onDismiss={() => setConfirm(null)}
       />
@@ -282,6 +320,7 @@ function ReorderableCategories({
   onDelete: (item: Category) => void;
 }) {
   const { scheme } = useTheme();
+  const { t } = useI18n();
 
   return (
     <ReorderableList
@@ -298,14 +337,14 @@ function ReorderableCategories({
             worklets가 이미 풀려난 콜백을 불러 앱이 죽는다 (reanimated #9776).
           */}
           <Action
-            label="수정"
+            label={t('common.edit', '수정')}
             color={scheme.primary}
             foreground={scheme.primaryForeground}
             Icon={Pencil}
             onPress={() => onEdit(item)}
           />
           <Action
-            label="삭제"
+            label={t('common.delete', '삭제')}
             color={scheme.destructive}
             foreground={scheme.destructiveForeground}
             Icon={Trash2}
@@ -316,7 +355,9 @@ function ReorderableCategories({
       renderRow={(item) => (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${categoryLabel(item)} 수정`}
+          accessibilityLabel={t('categoryManager.editA11y', '{{name}} 수정', {
+            name: categoryDisplayLabel(item, t),
+          })}
           onPress={() => {
             haptics.selection();
             onEdit(item);
@@ -328,7 +369,7 @@ function ReorderableCategories({
           <GripVertical size={16} color={scheme.mutedForeground} />
           <Text className="text-xl">{item.icon}</Text>
           <Text className="flex-1 text-base font-bold text-neutral-900 dark:text-neutral-50">
-            {categoryLabel(item)}
+            {categoryDisplayLabel(item, t)}
           </Text>
         </Pressable>
       )}
@@ -368,11 +409,12 @@ function Action({
 
 function Header({ title, onBack }: { title: string; onBack: () => void }) {
   const { scheme } = useTheme();
+  const { t } = useI18n();
   return (
     <View className="mb-3 flex-row items-center gap-2">
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="뒤로"
+        accessibilityLabel={t('main.backA11y', '뒤로')}
         hitSlop={10}
         onPress={() => {
           haptics.selection();

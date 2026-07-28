@@ -3,22 +3,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import {
-  CURRENCIES,
-  countryNameOfCurrency,
-  flagOfCurrency,
-} from '@/constants/currencies';
+import { flagOfDestination } from '@/constants/currencies';
 import type { Expense } from '@/db/schema';
 import { useTheme } from '@/hooks/use-theme';
+import { destinationLabel, useI18n } from '@/i18n';
 import { haptics } from '@/lib/haptics';
-import {
-  convertMinor,
-  digitsOf,
-  formatAmount,
-  fromMinor,
-  groupDigits,
-  toMinor,
-} from '@/lib/money';
+import { convertMinor, digitsOf, formatAmount, fromMinor, groupDigits, toMinor } from '@/lib/money';
 import type { PairSide } from './currency-pair-card';
 import { QuickRecord, type QuickRecordInput } from './quick-record';
 
@@ -30,6 +20,7 @@ type Props = {
   visible: boolean;
   side: PairSide;
   localCurrency: string;
+  localCountryCode?: string | null;
   baseCurrency: string;
   /** 1 localCurrency = rate baseCurrency */
   rate: number;
@@ -110,6 +101,7 @@ export function CalculatorSheet({
   visible,
   side,
   localCurrency,
+  localCountryCode,
   baseCurrency,
   rate,
   initialMinor = 0,
@@ -123,6 +115,7 @@ export function CalculatorSheet({
   onSave,
 }: Props) {
   const { scheme } = useTheme();
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
 
   const [expr, setExpr] = useState('0');
@@ -133,6 +126,7 @@ export function CalculatorSheet({
 
   const activeSide: PairSide = flipped ? (side === 'local' ? 'base' : 'local') : side;
   const inputCurrency = activeSide === 'local' ? localCurrency : baseCurrency;
+  const inputCountryCode = activeSide === 'local' ? localCountryCode : null;
   const otherCurrency = activeSide === 'local' ? baseCurrency : localCurrency;
 
   // 계산기는 빈 상태에서 시작한다. 최근 계산 칩처럼 시작 금액을 준 경우에만 그것을 이어받는다.
@@ -222,17 +216,17 @@ export function CalculatorSheet({
         {/* 미니멀 헤더 */}
         <View className="mb-2 flex-row items-center justify-between py-1">
           <View className="flex-row items-center gap-2">
-            <Text className="text-xl">{flagOfCurrency(inputCurrency)}</Text>
+            <Text className="text-xl">{flagOfDestination(inputCountryCode, inputCurrency)}</Text>
 
             <Text style={{ color: scheme.foreground }} className="text-base font-black">
-              {countryNameOfCurrency(inputCurrency)} ({inputCurrency})
+              {destinationLabel(inputCountryCode, inputCurrency, t)} ({inputCurrency})
             </Text>
           </View>
 
           <View className="flex-row items-center gap-2">
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="입력 통화 바꾸기"
+              accessibilityLabel={t('main.changeInputCurrencyA11y', '입력 통화 바꾸기')}
               onPress={swap}
               style={{ backgroundColor: scheme.secondary }}
               className="h-10 w-10 items-center justify-center rounded-full active:scale-95 active:opacity-70"
@@ -242,7 +236,7 @@ export function CalculatorSheet({
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="계산기 닫기"
+              accessibilityLabel={t('main.closeCalculatorA11y', '계산기 닫기')}
               onPress={() => {
                 haptics.selection();
                 onClose(result);
@@ -258,19 +252,19 @@ export function CalculatorSheet({
         {/* 대형 숫자 디스플레이 영역 */}
         <Pressable
           accessibilityRole={picking ? 'button' : 'none'}
-          accessibilityLabel="금액 고치기"
+          accessibilityLabel={t('main.editAmountA11y', '금액 고치기')}
           disabled={!picking}
           onPress={() => {
             haptics.selection();
             setPicking(false);
           }}
-          className={picking ? 'py-2 gap-2' : 'flex-1 justify-end gap-3 pb-4'}
+          className={picking ? 'gap-2 py-2' : 'flex-1 justify-end gap-3 pb-4'}
         >
           <View className="flex-row items-center gap-3">
             {/* 두 줄 사이 왼쪽 — 입력 통화 뒤집기 */}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="입력 통화 바꾸기"
+              accessibilityLabel={t('main.changeInputCurrencyA11y', '입력 통화 바꾸기')}
               onPress={swap}
               style={{ backgroundColor: scheme.secondary }}
               className="h-12 w-12 items-center justify-center rounded-full active:scale-95 active:opacity-70"
@@ -287,10 +281,15 @@ export function CalculatorSheet({
                     text={formatExpr(expr)}
                     fade={scheme.background}
                     color={expr === '0' ? scheme.mutedForeground : scheme.foreground}
-                    fontSizeClass={picking ? 'text-4xl font-black' : 'text-6xl sm:text-7xl font-black'}
+                    fontSizeClass={
+                      picking ? 'text-4xl font-black' : 'text-6xl sm:text-7xl font-black'
+                    }
                   />
                 </View>
-                <Text style={{ color: scheme.mutedForeground }} className="text-lg font-black tracking-wider">
+                <Text
+                  style={{ color: scheme.mutedForeground }}
+                  className="text-lg font-black tracking-wider"
+                >
                   {inputCurrency}
                 </Text>
               </View>
@@ -302,7 +301,7 @@ export function CalculatorSheet({
                     numberOfLines={1}
                     adjustsFontSizeToFit
                     style={{ color: scheme.primary, opacity: 0.6 }}
-                    className={picking ? 'text-3xl font-black' : 'text-5xl sm:text-6xl font-black'}
+                    className={picking ? 'text-3xl font-black' : 'text-5xl font-black sm:text-6xl'}
                   >
                     {formatAmount(otherMinor, otherCurrency)}
                   </Text>
@@ -336,7 +335,9 @@ export function CalculatorSheet({
                 <Pressable
                   key={amount}
                   accessibilityRole="button"
-                  accessibilityLabel={`${amount.toLocaleString('en-US')} 더하기`}
+                  accessibilityLabel={t('main.addAmountA11y', '{{amount}} 더하기', {
+                    amount: amount.toLocaleString('en-US'),
+                  })}
                   onPress={() => pressShortcut(amount)}
                   style={{ backgroundColor: scheme.primarySoft }}
                   className="flex-1 items-center rounded-2xl py-2.5 active:scale-95 active:opacity-75"
@@ -441,10 +442,13 @@ export function CalculatorSheet({
                 shadowOffset: { width: 0, height: 6 },
                 elevation: 6,
               }}
-              className="mt-4 mb-1 h-16 w-full items-center justify-center rounded-3xl active:scale-[0.98] active:opacity-90"
+              className="mb-1 mt-4 h-16 w-full items-center justify-center rounded-3xl active:scale-[0.98] active:opacity-90"
             >
-              <Text style={{ color: scheme.primaryForeground }} className="text-2xl font-black tracking-wide">
-                {canRecord ? '기록하기' : '확인'}
+              <Text
+                style={{ color: scheme.primaryForeground }}
+                className="text-2xl font-black tracking-wide"
+              >
+                {canRecord ? t('main.record', '기록하기') : t('common.confirm', '확인')}
               </Text>
             </Pressable>
 
@@ -458,7 +462,7 @@ export function CalculatorSheet({
                 className="h-12 w-full items-center justify-center rounded-3xl active:opacity-60"
               >
                 <Text style={{ color: scheme.mutedForeground }} className="text-base font-bold">
-                  취소
+                  {t('common.cancel', '취소')}
                 </Text>
               </Pressable>
             )}
@@ -543,13 +547,14 @@ function Key({
   color: string;
   flex?: number;
 }) {
+  const { t } = useI18n();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label === '⌫' ? '한 자리 지우기' : label}
+      accessibilityLabel={label === '⌫' ? t('main.deleteOneDigitA11y', '한 자리 지우기') : label}
       onPress={onPress}
       style={{ backgroundColor: background, flex }}
-      className="h-16 sm:h-20 items-center justify-center rounded-2xl active:scale-95 active:opacity-75"
+      className="h-16 items-center justify-center rounded-2xl active:scale-95 active:opacity-75 sm:h-20"
     >
       {label === '⌫' ? (
         <Delete size={24} color={color} />
@@ -561,6 +566,3 @@ function Key({
     </Pressable>
   );
 }
-
-
-

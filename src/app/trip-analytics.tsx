@@ -15,13 +15,27 @@ import { CategoryBreakdown } from '@/components/domain/analytics/category-breakd
 import { DailyTrend } from '@/components/domain/analytics/daily-trend';
 import { FullScreenLoader } from '@/components/ui/full-screen-loader';
 import { SectionHeader } from '@/components/ui/section-header';
-import { countryNameOfCurrency } from '@/constants/currencies';
+import { findCountryByCode, findCountryByCurrency, type CountryInfo } from '@/constants/currencies';
 import { db } from '@/db';
-import { categories, expenses, participants, trips } from '@/db/schema';
+import { categories, expenses, participants, trips, type Category } from '@/db/schema';
 import { localDateKey } from '@/hooks/use-active-trip';
 import { MIN_TREND_DAYS, useAnalytics } from '@/hooks/use-analytics';
 import { useTheme } from '@/hooks/use-theme';
+import { categoryDisplayLabel, useI18n } from '@/i18n';
 import { useAppStore } from '@/store/app';
+
+type T = ReturnType<typeof useI18n>['t'];
+
+const countryLabel = (country: CountryInfo, t: T) => t(`country.${country.code}`, country.nameKo);
+
+const destinationName = (
+  countryCode: string | null | undefined,
+  currency: string,
+  t: T,
+): string => {
+  const country = findCountryByCode(countryCode) ?? findCountryByCurrency(currency);
+  return country ? countryLabel(country, t) : currency;
+};
 
 /**
  * 여행 하나의 애널리틱스 — 단일 스크롤. 탭이나 페이지 전환을 두지 않는다.
@@ -31,6 +45,7 @@ import { useAppStore } from '@/store/app';
 export default function TripAnalyticsScreen() {
   const router = useRouter();
   const { scheme } = useTheme();
+  const { locale, t } = useI18n();
   const insets = useSafeAreaInsets();
   const lastSyncAt = useAppStore((s) => s.lastSyncAt);
 
@@ -71,24 +86,40 @@ export default function TripAnalyticsScreen() {
     () => [scheme.chart1, scheme.chart2, scheme.chart3, scheme.chart4, scheme.chart5],
     [scheme],
   );
+  const categoryNameOf = useMemo(
+    () => (category: Category) => categoryDisplayLabel(category, t),
+    [t],
+  );
+  const dateLabelOf = useMemo(
+    () => (key: string) =>
+      new Intl.DateTimeFormat(locale, { month: 'numeric', day: 'numeric' }).format(
+        new Date(`${key}T00:00:00`),
+      ),
+    [locale],
+  );
 
   const analytics = useAnalytics({
     trip,
     expenses: rows,
     categories: categoryRows,
+    categoryLabelOf: categoryNameOf,
+    otherCategoryLabel: t('category.other', '기타'),
+    dateLabelOf,
     participants: participantRows,
     myParticipantId,
     palette,
   });
 
-  if (tripQuery.data === undefined) return <FullScreenLoader title="분석하는 중" />;
+  if (tripQuery.data === undefined) {
+    return <FullScreenLoader title={t('analytics.loading', '분석하는 중')} />;
+  }
   if (!trip) {
     return (
       <View className="flex-1" style={{ backgroundColor: scheme.background }}>
-        <SectionHeader title="애널리틱스" onBack={() => router.back()} />
+        <SectionHeader title={t('analytics.title', '애널리틱스')} onBack={() => router.back()} />
         <View className="items-center gap-2 py-24">
           <Text className="text-lg font-black text-neutral-900 dark:text-neutral-50">
-            여행을 찾을 수 없어요
+            {t('tripAnalytics.notFound', '여행을 찾을 수 없어요')}
           </Text>
         </View>
       </View>
@@ -102,10 +133,10 @@ export default function TripAnalyticsScreen() {
       return (
         <View className="items-center gap-2 py-24">
           <Text className="text-lg font-black text-neutral-900 dark:text-neutral-50">
-            아직 분석할 기록이 없어요
+            {t('tripAnalytics.emptyTitle', '아직 분석할 기록이 없어요')}
           </Text>
           <Text className="text-sm font-semibold" style={{ color: scheme.mutedForeground }}>
-            지출이 쌓이면 여기에서 소비 흐름을 보여드려요
+            {t('tripAnalytics.emptyDescription', '지출이 쌓이면 여기에서 소비 흐름을 보여드려요')}
           </Text>
         </View>
       );
@@ -162,7 +193,9 @@ export default function TripAnalyticsScreen() {
   return (
     <View className="flex-1" style={{ backgroundColor: scheme.background }}>
       <SectionHeader
-        title={`${countryNameOfCurrency(trip.destinationCurrency)} 여행`}
+        title={t('tripAnalytics.title', '{{country}} 여행', {
+          country: destinationName(trip.destinationCountryCode, trip.destinationCurrency, t),
+        })}
         onBack={() => router.back()}
       />
       <ScrollView
