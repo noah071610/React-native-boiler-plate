@@ -19,4 +19,12 @@ export const HERO_IMAGES: Record<string, number> = {
   USD: require('../../assets/images/hero/usa.jpg'),
   EUR: require('../../assets/images/hero/france.jpg'),
   GBP: require('../../assets/images/hero/uk.jpg'),
+  INR: require('../../assets/images/hero/india.jpg'),
+  NPR: require('../../assets/images/hero/nepal.jpg'),
+  MNT: require('../../assets/images/hero/mongolia.jpg'),
+  AUD: require('../../assets/images/hero/australia.jpg'),
+  CHF: require('../../assets/images/hero/switzerland.jpg'),
+  TRY: require('../../assets/images/hero/turkey.jpg'),
+  AED: require('../../assets/images/hero/dubai.jpeg'),
+  EGP: require('../../assets/images/hero/egypt.jpg'),
 };
