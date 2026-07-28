@@ -74,6 +74,7 @@ export function Calendar({
   selectedDate,
   onSelectDate,
   markedDates,
+  minDate,
   initialMode = 'month',
   showModeToggle = true,
   monthLabel = '월단위 보기',
@@ -83,6 +84,8 @@ export function Calendar({
   selectedDate: string;
   onSelectDate: (date: string) => void;
   markedDates?: Set<string>;
+  /** 이 날짜보다 이전은 고를 수 없다 (yyyy-mm-dd). 키가 사전순=날짜순이라 문자열 비교로 충분하다 */
+  minDate?: string;
   initialMode?: ViewMode;
   showModeToggle?: boolean;
   monthLabel?: string;
@@ -211,6 +214,7 @@ export function Calendar({
                         selected={date === selectedDate}
                         isToday={date === today}
                         marked={markedDates?.has(date) ?? false}
+                        disabled={minDate != null && date < minDate}
                         scheme={scheme}
                         onPress={() => {
                           haptics.selection();
@@ -277,6 +281,7 @@ function DayCell({
   selected,
   isToday,
   marked,
+  disabled,
   scheme,
   onPress,
 }: {
@@ -284,15 +289,18 @@ function DayCell({
   selected: boolean;
   isToday: boolean;
   marked: boolean;
+  disabled?: boolean;
   scheme: Scheme;
   onPress: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled: disabled ?? false }}
       accessibilityLabel={date}
+      disabled={disabled}
       onPress={onPress}
+      style={disabled ? { opacity: 0.3 } : undefined}
       className="flex-1 items-center py-1"
     >
       <View

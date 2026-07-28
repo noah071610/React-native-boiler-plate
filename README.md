@@ -1,4 +1,4 @@
-# just-one-set-front
+# tabica-front
 
 Expo (SDK 57) + Expo Router boilerplate. Reusable base — no app-specific logic.
 

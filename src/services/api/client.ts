@@ -1,5 +1,5 @@
 import { hc } from 'hono/client';
-import type { AppType } from '../../../../light-base-online/src/index';
+import { AppType } from './../../../../lightbase-online/src/index';
 
 import { getToken } from '@/lib/secure';
 import { refreshSession } from '@/services/api/auth';

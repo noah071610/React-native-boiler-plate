@@ -1,10 +1,11 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
+import { useBundleAutoUpload } from '@/hooks/use-bundle-upload';
 import { useTheme } from '@/hooks/use-theme';
 import { colors } from '@/theme/colors';
 
 /**
- * §6.1 하단 탭. 설정은 프로필에서 들어간다.
+ * §8 화면 구성 — 탭 4개. 지도 / 캘린더 / 커뮤니티 탭은 만들지 않는다.
  * Native tab bar — real `UITabBarController` on iOS (Liquid Glass on iOS 26+)
  * and Material 3 `NavigationBar` on Android. Shape/layout is drawn by the OS;
  * only colors, labels, icons and badges are ours to set.
@@ -13,6 +14,10 @@ export default function TabsLayout() {
   const { effectiveScheme } = useTheme();
   const scheme = colors[effectiveScheme];
 
+  // 초대 코드가 살아 있을 때만 도는 우편함 최신화. 여기(탭 루트)에 두면 앱이 떠 있는
+  // 동안 항상 마운트되어 있고, 온보딩·마이그레이션이 끝난 뒤에만 돈다.
+  useBundleAutoUpload();
+
   return (
     <NativeTabs
       tintColor={scheme.primary}
@@ -20,23 +25,23 @@ export default function TabsLayout() {
       indicatorColor={scheme.primarySoft}
     >
       <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>홈</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="house.fill" md="home" />
+        <NativeTabs.Trigger.Label>메인</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="house" md="home" />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="routine">
-        <NativeTabs.Trigger.Label>루틴</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="dumbbell.fill" md="fitness_center" />
+      <NativeTabs.Trigger name="timeline">
+        <NativeTabs.Trigger.Label>타임라인</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="list.bullet" md="receipt_long" />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="history">
-        <NativeTabs.Trigger.Label>기록</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="calendar" md="calendar_month" />
+      <NativeTabs.Trigger name="analytics">
+        <NativeTabs.Trigger.Label>애널리틱스</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="chart.pie" md="pie_chart" />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="profile">
-        <NativeTabs.Trigger.Label>프로필</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="person.fill" md="person" />
+      <NativeTabs.Trigger name="settings">
+        <NativeTabs.Trigger.Label>설정</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="gearshape" md="settings" />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

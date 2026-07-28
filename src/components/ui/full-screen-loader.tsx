@@ -13,13 +13,11 @@ import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 
 import { Screen } from '@/components/ui/screen';
 import { useTheme } from '@/hooks/use-theme';
-import { colors } from '@/theme/colors';
 
 const LOGO = require('../../../assets/images/temp.png');
 
 export function FullScreenLoader({ title, subtitle }: { title: string; subtitle?: string }) {
-  const { effectiveScheme } = useTheme();
-  const scheme = colors[effectiveScheme];
+  const { effectiveScheme, scheme } = useTheme();
   const isDark = effectiveScheme === 'dark';
 
   const pulse = useSharedValue(0);
@@ -51,11 +49,11 @@ export function FullScreenLoader({ title, subtitle }: { title: string; subtitle?
         <Svg height="100%" width="100%" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid slice">
           <Defs>
             <RadialGradient id="loaderBgGradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-              <Stop offset="0%" stopColor={scheme.primary} stopOpacity={isDark ? '0.35' : '0.22'} />
+              <Stop offset="0%" stopColor={scheme.primary} stopOpacity={isDark ? '0.35' : '0.18'} />
               <Stop
-                offset="45%"
-                stopColor={scheme.primary}
-                stopOpacity={isDark ? '0.15' : '0.08'}
+                offset="55%"
+                stopColor={scheme.primarySoft}
+                stopOpacity={isDark ? '0.15' : '0.25'}
               />
               <Stop offset="100%" stopColor={scheme.background} stopOpacity="0" />
             </RadialGradient>
@@ -70,7 +68,10 @@ export function FullScreenLoader({ title, subtitle }: { title: string; subtitle?
           <Animated.View
             style={[
               glowRingAnimatedStyle,
-              { backgroundColor: scheme.primarySoft, borderColor: scheme.primary + '40' },
+              {
+                backgroundColor: scheme.primarySoft,
+                borderColor: isDark ? scheme.primary + '40' : scheme.primary + '30',
+              },
             ]}
             className="absolute h-32 w-32 rounded-full border-2"
           />
@@ -79,10 +80,10 @@ export function FullScreenLoader({ title, subtitle }: { title: string; subtitle?
           <Animated.View style={logoAnimatedStyle} className="relative items-center justify-center">
             <View
               style={{
-                backgroundColor: scheme.primarySoft,
-                borderColor: scheme.primary + '35',
+                backgroundColor: isDark ? scheme.card : '#FFFFFF',
+                borderColor: isDark ? scheme.border : scheme.primarySoft,
                 shadowColor: scheme.primary,
-                shadowOpacity: 0.3,
+                shadowOpacity: isDark ? 0.3 : 0.15,
                 shadowRadius: 20,
                 shadowOffset: { width: 0, height: 8 },
                 elevation: 10,
@@ -96,11 +97,17 @@ export function FullScreenLoader({ title, subtitle }: { title: string; subtitle?
 
         {/* Text Details */}
         <View className="mt-8 items-center gap-2">
-          <Text className="text-center text-2xl font-black tracking-tight text-neutral-900 dark:text-neutral-50">
+          <Text
+            style={{ color: scheme.foreground }}
+            className="text-center text-2xl font-black tracking-tight"
+          >
             {title}
           </Text>
           {subtitle ? (
-            <Text className="text-center text-xs font-semibold leading-relaxed text-neutral-500 dark:text-neutral-400">
+            <Text
+              style={{ color: scheme.mutedForeground }}
+              className="text-center text-xs font-semibold leading-relaxed"
+            >
               {subtitle}
             </Text>
           ) : null}
@@ -156,3 +163,4 @@ function LoadingDot({ delay, color }: { delay: number; color: string }) {
     />
   );
 }
+

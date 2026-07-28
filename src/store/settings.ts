@@ -4,7 +4,8 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { mmkvStorage } from '@/lib/storage';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
-export type LanguagePreference = 'system' | 'ko' | 'en';
+/** 한 / 영 / 일 — 타겟이 국제 커플과 장기 체류자라 언어가 곧 시장이다 (Master §7). */
+export type LanguagePreference = 'system' | 'ko' | 'en' | 'ja';
 
 /** Min/max multiplier applied on top of the OS accessibility font scale. */
 export const FONT_SCALE_MIN = 0.85;

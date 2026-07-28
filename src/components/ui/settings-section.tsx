@@ -53,22 +53,32 @@ export function SettingsRow({
   description,
   right,
   active = true,
+  tone = 'default',
 }: {
   icon?: ReactNode;
   title: string;
   description?: string;
   right?: ReactNode;
   active?: boolean;
+  /** danger면 아이콘 박스가 붉어진다 (위험 액션) */
+  tone?: Tone;
 }) {
   const { effectiveScheme } = useTheme();
   const scheme = colors[effectiveScheme];
+  const iconBackground = !active
+    ? scheme.secondary
+    : tone === 'danger'
+      ? effectiveScheme === 'dark'
+        ? '#4C1D24'
+        : '#FEE2E2'
+      : scheme.primarySoft;
 
   return (
     <View className="flex-row items-center justify-between gap-3">
       <View className="flex-1 flex-row items-center gap-3">
         {icon ? (
           <View
-            style={{ backgroundColor: active ? scheme.primarySoft : scheme.secondary }}
+            style={{ backgroundColor: iconBackground }}
             className="h-10 w-10 items-center justify-center rounded-xl"
           >
             {icon}

@@ -15,6 +15,8 @@ import { FullScreenLoader } from '@/components/ui/full-screen-loader';
 import { db, sqlite } from '@/db';
 import { useTheme } from '@/hooks/use-theme';
 import { queryClient } from '@/lib/query';
+import { useAppStore } from '@/store/app';
+import { useSettingsStore } from '@/store/settings';
 import { colors } from '@/theme/colors';
 import migrations from '../../drizzle/migrations';
 
@@ -22,12 +24,15 @@ export default function RootLayout() {
   const { effectiveScheme } = useTheme();
   const { setColorScheme } = useColorScheme();
   const { success, error } = useMigrations(db, migrations);
+  const onboarded = useAppStore((s) => s.onboarded);
+  const theme = useSettingsStore((s) => s.theme);
   // 개발용 DB 뷰어. `npx expo start` → shift + m → Drizzle Studio.
   useDrizzleStudio(sqlite);
 
+  // 설정의 테마 선택을 nativewind에 반영한다. 'system'이면 OS 설정을 따라간다.
   useEffect(() => {
-    setColorScheme('dark');
-  }, [setColorScheme]);
+    setColorScheme(theme);
+  }, [theme, setColorScheme]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -55,7 +60,18 @@ export default function RootLayout() {
           ) : !success ? (
             <FullScreenLoader title="로딩 중" />
           ) : (
-            <Stack screenOptions={{ headerShown: false }} />
+            <Stack screenOptions={{ headerShown: false }}>
+              {/* 온보딩은 최초 1회. 두 번째 실행부터는 바로 메인이다. */}
+              <Stack.Protected guard={onboarded}>
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="expense" />
+                <Stack.Screen name="trip-analytics" />
+                <Stack.Screen name="sync" />
+              </Stack.Protected>
+              <Stack.Protected guard={!onboarded}>
+                <Stack.Screen name="onboarding" />
+              </Stack.Protected>
+            </Stack>
           )}
         </QueryClientProvider>
       </SafeAreaProvider>

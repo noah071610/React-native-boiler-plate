@@ -39,8 +39,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   return {
     ...config,
-    name: config.name ?? 'just-one-set',
-    slug: config.slug ?? 'just-one-set',
+    name: config.name ?? 'tabica',
+    slug: config.slug ?? 'tabica',
     plugins,
   };
 };
