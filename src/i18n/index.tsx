@@ -1,12 +1,12 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
+import { categoryLabel as fallbackCategoryLabel } from '@/constants/categories';
 import {
   CURRENCIES,
   findCountryByCode,
   findCountryByCurrency,
   type CountryInfo,
 } from '@/constants/currencies';
-import { categoryLabel as fallbackCategoryLabel } from '@/constants/categories';
 import { formatAmount } from '@/lib/money';
 import { useSettingsStore, type LanguagePreference } from '@/store/settings';
 

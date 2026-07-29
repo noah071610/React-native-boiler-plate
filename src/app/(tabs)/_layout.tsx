@@ -31,16 +31,6 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Icon sf="house" md="home" />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="timeline">
-        <NativeTabs.Trigger.Label>{t('tabs.timeline', '타임라인')}</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="list.bullet" md="receipt_long" />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="analytics">
-        <NativeTabs.Trigger.Label>{t('tabs.analytics', '애널리틱스')}</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="chart.pie" md="pie_chart" />
-      </NativeTabs.Trigger>
-
       <NativeTabs.Trigger name="settings">
         <NativeTabs.Trigger.Label>{t('tabs.settings', '설정')}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="gearshape" md="settings" />
